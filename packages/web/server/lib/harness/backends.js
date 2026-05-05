@@ -110,6 +110,7 @@ export const createBackendRegistry = ({ readSettingsFromDiskMigrated } = {}) => 
 
   const listBackends = () => BACKEND_DESCRIPTORS.map((descriptor) => ({
     ...descriptor,
+    available: descriptor.available && isBackendAvailable(descriptor.id),
     capabilities: { ...descriptor.capabilities },
   }));
 
@@ -148,7 +149,7 @@ export const createBackendRegistry = ({ readSettingsFromDiskMigrated } = {}) => 
       const settings = await readSettingsFromDiskMigrated?.();
       const configured = typeof settings?.defaultBackend === 'string' ? settings.defaultBackend.trim() : '';
       const descriptor = configured ? descriptorById.get(configured) : null;
-      if (descriptor) {
+      if (descriptor && descriptor.available && isBackendAvailable(descriptor.id)) {
         return descriptor.id;
       }
     } catch {
@@ -168,7 +169,7 @@ export const createBackendRegistry = ({ readSettingsFromDiskMigrated } = {}) => 
 
   const isBackendSelectable = (backendId) => {
     const descriptor = getBackend(backendId);
-    return Boolean(descriptor?.available);
+    return Boolean(descriptor?.available && isBackendAvailable(descriptor.id));
   };
 
   return {

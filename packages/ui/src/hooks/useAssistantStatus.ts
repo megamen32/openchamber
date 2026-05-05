@@ -13,8 +13,8 @@ import {
     getCompatiblePartText,
     getCompatibleToolName,
     getCompatibleToolStatus,
-    getOpenCodeCompatibleMessages,
-    getOpenCodeCompatibleParts,
+    getOpenCodeCompatibleMessageList,
+    getOpenCodeCompatiblePartList,
     type SyncMessageRecord,
     type SyncPartRecord,
 } from '@/sync/compat';
@@ -100,13 +100,17 @@ const isAssistantMessage = (message: SyncMessageRecord): message is SyncMessageR
 export function useAssistantStatus(): AssistantStatusSnapshot {
     const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
 
-    const rawSessionMessages = useDirectorySync(
+    const sessionMessageRecords = useDirectorySync(
         React.useCallback((state) => {
             if (!currentSessionId) {
                 return EMPTY_MESSAGES;
             }
-            return getOpenCodeCompatibleMessages(state, currentSessionId);
+            return state.message[currentSessionId] ?? EMPTY_MESSAGES;
         }, [currentSessionId])
+    );
+    const rawSessionMessages = React.useMemo(
+        () => getOpenCodeCompatibleMessageList(sessionMessageRecords),
+        [sessionMessageRecords]
     );
 
     // Only subscribe to parts for the last assistant message — avoids re-render
@@ -118,11 +122,15 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
         return null;
     }, [rawSessionMessages]);
 
-    const lastAssistantParts = useDirectorySync(
+    const lastAssistantPartRecords = useDirectorySync(
         React.useCallback((state) => {
             if (!lastAssistantId) return EMPTY_PARTS;
-            return getOpenCodeCompatibleParts(state, lastAssistantId);
+            return state.part[lastAssistantId] ?? EMPTY_PARTS;
         }, [lastAssistantId])
+    );
+    const lastAssistantParts = React.useMemo(
+        () => getOpenCodeCompatiblePartList(lastAssistantPartRecords),
+        [lastAssistantPartRecords]
     );
 
     const sessionMessages = React.useMemo<SessionMessageRecord[]>(

@@ -8,6 +8,10 @@ export type SyncSessionRecord = HarnessSession | Session
 export type SyncMessageRecord = HarnessMessage | Message
 export type SyncPartRecord = HarnessPart | Part
 
+const compatibleSessionListCache = new WeakMap<SyncSessionRecord[], Session[]>()
+const compatibleMessageListCache = new WeakMap<SyncMessageRecord[], Message[]>()
+const compatiblePartListCache = new WeakMap<SyncPartRecord[], Part[]>()
+
 export function toOpenCodeCompatibleSession(session: SyncSessionRecord): Session {
   return isOpenCodeSession(session) ? session : toOpenCodeSessionCompat(session)
 }
@@ -21,7 +25,11 @@ export function toOpenCodeCompatiblePart(part: SyncPartRecord): Part {
 }
 
 export function getOpenCodeCompatibleSessions(state: State): Session[] {
-  return mapIfNeeded(state.session as SyncSessionRecord[], isOpenCodeSession, toOpenCodeCompatibleSession, EMPTY_SESSIONS)
+  return getOpenCodeCompatibleSessionList(state.session)
+}
+
+export function getOpenCodeCompatibleSessionList(sessions: SyncSessionRecord[] | undefined): Session[] {
+  return mapIfNeededCached(sessions, isOpenCodeSession, toOpenCodeCompatibleSession, EMPTY_SESSIONS, compatibleSessionListCache)
 }
 
 export function getOpenCodeCompatibleSession(state: State, sessionID?: string | null): Session | undefined {
@@ -31,13 +39,19 @@ export function getOpenCodeCompatibleSession(state: State, sessionID?: string | 
 }
 
 export function getOpenCodeCompatibleMessages(state: State, sessionID: string): Message[] {
-  const messages = state.message[sessionID]
-  return mapIfNeeded(messages as SyncMessageRecord[] | undefined, isOpenCodeMessage, toOpenCodeCompatibleMessage, EMPTY_MESSAGES)
+  return getOpenCodeCompatibleMessageList(state.message[sessionID])
+}
+
+export function getOpenCodeCompatibleMessageList(messages: SyncMessageRecord[] | undefined): Message[] {
+  return mapIfNeededCached(messages, isOpenCodeMessage, toOpenCodeCompatibleMessage, EMPTY_MESSAGES, compatibleMessageListCache)
 }
 
 export function getOpenCodeCompatibleParts(state: State, messageID: string): Part[] {
-  const parts = state.part[messageID]
-  return mapIfNeeded(parts as SyncPartRecord[] | undefined, isOpenCodePart, toOpenCodeCompatiblePart, EMPTY_PARTS)
+  return getOpenCodeCompatiblePartList(state.part[messageID])
+}
+
+export function getOpenCodeCompatiblePartList(parts: SyncPartRecord[] | undefined): Part[] {
+  return mapIfNeededCached(parts, isOpenCodePart, toOpenCodeCompatiblePart, EMPTY_PARTS, compatiblePartListCache)
 }
 
 export function getCompatibleSessionDirectory(session: SyncSessionRecord): string | null {
@@ -154,6 +168,22 @@ function mapIfNeeded<TInput, TOutput>(
     if (!isOutput(item)) return items.map(map)
   }
   return items as unknown as TOutput[]
+}
+
+function mapIfNeededCached<TInput extends object, TOutput>(
+  items: TInput[] | undefined,
+  isOutput: (item: TInput) => item is TInput & TOutput,
+  map: (item: TInput) => TOutput,
+  empty: TOutput[],
+  cache: WeakMap<TInput[], TOutput[]>,
+): TOutput[] {
+  if (!items || items.length === 0) return empty
+  const cached = cache.get(items)
+  if (cached) return cached
+
+  const mapped = mapIfNeeded(items, isOutput, map, empty)
+  cache.set(items, mapped)
+  return mapped
 }
 
 function isOpenCodeSession(session: SyncSessionRecord): session is Session {

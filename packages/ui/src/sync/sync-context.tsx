@@ -12,8 +12,11 @@ import type { DirectorySyncEvent } from "./event-reducer"
 import { fromOpenCodeEvent, fromOpenCodeMessage, fromOpenCodePart, fromOpenCodeSession } from "./adapters/opencode"
 import {
   getOpenCodeCompatibleMessages,
+  getOpenCodeCompatibleMessageList,
   getOpenCodeCompatibleParts,
+  getOpenCodeCompatiblePartList,
   getOpenCodeCompatibleSession,
+  getOpenCodeCompatibleSessionList,
   getOpenCodeCompatibleSessions,
   getCompatibleSessionDirectory,
   getCompatibleSessionParentId,
@@ -1528,10 +1531,11 @@ export function useSessionRevertMessageID(sessionID: string, directory?: string)
 
 /** Get session messages for a specific session */
 export function useSessionMessages(sessionID: string, directory?: string) {
-  return useDirectorySync(
-    useCallback((state: State) => getOpenCodeCompatibleMessages(state, sessionID), [sessionID]),
+  const messages = useDirectorySync(
+    useCallback((state: State) => state.message[sessionID], [sessionID]),
     directory,
   )
+  return useMemo(() => getOpenCodeCompatibleMessageList(messages), [messages])
 }
 
 /**
@@ -1560,10 +1564,11 @@ export function useSessionMessagesResolved(sessionID: string, directory?: string
 
 /** Get parts for a specific message */
 export function useSessionParts(messageID: string, directory?: string) {
-  return useDirectorySync(
-    useCallback((state: State) => getOpenCodeCompatibleParts(state, messageID), [messageID]),
+  const parts = useDirectorySync(
+    useCallback((state: State) => state.part[messageID], [messageID]),
     directory,
   )
+  return useMemo(() => getOpenCodeCompatiblePartList(parts), [parts])
 }
 
 /** Get status for a specific session */
@@ -1592,10 +1597,8 @@ export function useSessionQuestions(sessionID: string, directory?: string) {
 
 /** Get sessions list for a directory */
 export function useSessions(directory?: string) {
-  return useDirectorySync(
-    useCallback((state: State) => getOpenCodeCompatibleSessions(state), []),
-    directory,
-  )
+  const sessions = useDirectorySync(useCallback((state: State) => state.session, []), directory)
+  return useMemo(() => getOpenCodeCompatibleSessionList(sessions), [sessions])
 }
 
 const getSidebarSessionSignature = (session: Session, stableUpdatedAt: number): string => {

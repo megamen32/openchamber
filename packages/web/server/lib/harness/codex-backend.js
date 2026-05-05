@@ -1291,6 +1291,7 @@ export const createCodexBackendRuntime = (dependencies) => {
   const listPendingPermissions = (sessionId) => appServer.listPendingPermissions(sessionId);
   const listPendingQuestions = (sessionId) => appServer.listPendingQuestions(sessionId);
   const shutdownAll = () => appServer.shutdownAll();
+  const isAvailable = () => appServer.isAvailable();
 
   return {
     ensureLoaded,
@@ -1316,5 +1317,6 @@ export const createCodexBackendRuntime = (dependencies) => {
     listPendingPermissions,
     listPendingQuestions,
     shutdownAll,
+    isAvailable,
   };
 };

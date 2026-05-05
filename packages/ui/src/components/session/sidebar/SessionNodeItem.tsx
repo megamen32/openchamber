@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { OpenCodeIcon } from '@/components/ui/OpenCodeIcon';
+import { BackendIcon } from '@/components/ui/BackendIcon';
 import {
   RiAddLine,
   RiArrowDownSLine,
@@ -404,16 +404,16 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
     : sessionRuntimeLabel;
   const runtimeLogoId = backendBadgeId ?? providerBadgeId ?? undefined;
   const { src: runtimeLogoSrc, onError: handleRuntimeLogoError, hasLogo: hasRuntimeLogo } = useProviderLogo(runtimeLogoId);
-  const shouldUseOpenCodeIcon = backendBadgeId === 'opencode';
-  const shouldShowRuntimeLogo = shouldUseOpenCodeIcon || (hasRuntimeLogo && runtimeLogoSrc);
+  const shouldUseBackendIcon = Boolean(backendBadgeId);
+  const shouldShowRuntimeLogo = shouldUseBackendIcon || (hasRuntimeLogo && runtimeLogoSrc);
   const runtimeMetaLogo = shouldShowRuntimeLogo ? (
     <span
       className="inline-flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-sm text-foreground/90"
       title={tooltipRuntimeLabel ?? undefined}
       aria-hidden="true"
     >
-      {shouldUseOpenCodeIcon ? (
-        <OpenCodeIcon width={12} height={12} className="text-foreground/90" />
+      {backendBadgeId ? (
+        <BackendIcon backendId={backendBadgeId} className="h-3 w-3 text-foreground/90" />
       ) : runtimeLogoSrc ? (
         <img
           src={runtimeLogoSrc}

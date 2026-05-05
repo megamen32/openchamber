@@ -120,8 +120,8 @@ export const createStartupPipelineRuntime = (dependencies) => {
       backendRegistry.setBackendAvailability('opencode', false);
     }
 
-    // Codex is SDK-based and always available when registered
-    backendRegistry.setBackendAvailability('codex', !!backendRegistry.getRuntime('codex'));
+    const codexRuntime = backendRegistry.getRuntime('codex');
+    backendRegistry.setBackendAvailability('codex', Boolean(codexRuntime?.isAvailable?.()));
 
     staticRoutesRuntime.registerStaticRoutes(app);
 

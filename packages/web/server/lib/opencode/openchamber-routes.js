@@ -318,8 +318,11 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
   app.get('/api/openchamber/backends', async (_req, res) => {
     try {
       const settings = await readSettingsFromDiskMigrated();
-      const defaultBackend = typeof settings?.defaultBackend === 'string' && settings.defaultBackend.trim().length > 0
+      const configuredDefaultBackend = typeof settings?.defaultBackend === 'string' && settings.defaultBackend.trim().length > 0
         ? settings.defaultBackend.trim()
+        : '';
+      const defaultBackend = configuredDefaultBackend && backendRegistry.isBackendSelectable(configuredDefaultBackend)
+        ? configuredDefaultBackend
         : await backendRegistry.getDefaultBackendId();
       res.json({
         defaultBackend,
@@ -341,8 +344,11 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
       return queryBackendId;
     }
     const settings = await readSettingsFromDiskMigrated();
-    return typeof settings?.defaultBackend === 'string' && settings.defaultBackend.trim().length > 0
+    const configuredDefaultBackend = typeof settings?.defaultBackend === 'string' && settings.defaultBackend.trim().length > 0
       ? settings.defaultBackend.trim()
+      : '';
+    return configuredDefaultBackend && backendRegistry.isBackendSelectable(configuredDefaultBackend)
+      ? configuredDefaultBackend
       : await backendRegistry.getDefaultBackendId();
   };
 
