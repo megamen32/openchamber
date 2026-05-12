@@ -32,4 +32,8 @@ describe('toUsageWindow', () => {
     expect(usageWindow.resetAtFormatted).toBe(formatResetTime(0));
     expect(usageWindow.resetAfterFormatted).toBe(formatResetTime(0));
   });
+
+  it('does not derive remaining percent from missing usage', () => {
+    expect(toUsageWindow({ usedPercent: undefined }).remainingPercent).toBeNull();
+  });
 });
