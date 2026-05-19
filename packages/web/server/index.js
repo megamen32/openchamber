@@ -250,9 +250,6 @@ const formatProjectLabel = (...args) => notificationTemplateRuntime.formatProjec
 const resolveNotificationTemplate = (...args) => notificationTemplateRuntime.resolveNotificationTemplate(...args);
 const shouldApplyResolvedTemplateMessage = (...args) => notificationTemplateRuntime.shouldApplyResolvedTemplateMessage(...args);
 const fetchFreeZenModels = (...args) => notificationTemplateRuntime.fetchFreeZenModels(...args);
-const resolveZenModel = (...args) => notificationTemplateRuntime.resolveZenModel(...args);
-const validateZenModelAtStartup = (...args) => notificationTemplateRuntime.validateZenModelAtStartup(...args);
-const summarizeText = (...args) => notificationTemplateRuntime.summarizeText(...args);
 const extractTextFromParts = (...args) => notificationTemplateRuntime.extractTextFromParts(...args);
 const extractLastMessageText = (...args) => notificationTemplateRuntime.extractLastMessageText(...args);
 const fetchLastAssistantMessageText = (...args) => notificationTemplateRuntime.fetchLastAssistantMessageText(...args);
@@ -670,8 +667,6 @@ notificationTemplateRuntime = createNotificationTemplateRuntime({
 const notificationTriggerRuntime = createNotificationTriggerRuntime({
   readSettingsFromDisk,
   prepareNotificationLastMessage,
-  summarizeText,
-  resolveZenModel,
   buildTemplateVariables,
   extractLastMessageText,
   fetchLastAssistantMessageText,
@@ -1090,9 +1085,6 @@ async function main(options = {}) {
 
   const sayTTSCapability = await detectSayTtsCapability(process);
 
-  // Startup model validation is best-effort and runs in background.
-  void validateZenModelAtStartup();
-
   const app = express();
   const serverStartedAt = new Date().toISOString();
   const packagedClientOrigins = new Set(['openchamber-ui://app']);
@@ -1165,7 +1157,6 @@ async function main(options = {}) {
     remoteClientAuthRuntime,
     readSettingsFromDiskMigrated,
     normalizeTunnelSessionTtlMs,
-    resolveZenModel,
     sayTTSCapability,
     ensurePushInitialized,
     ensureGlobalWatcherStarted,

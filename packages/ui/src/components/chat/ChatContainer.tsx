@@ -755,9 +755,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
             opencodeClient.listPendingQuestions({ directories: [directory] }),
         ]).then(([statuses, permissions, questions]) => {
             if (cancelled) return;
+            const sessionStatus = statuses?.[currentSessionId];
             syncStore.setState((state) => ({
-                session_status: statuses[currentSessionId]
-                    ? { ...state.session_status, [currentSessionId]: statuses[currentSessionId] as (typeof state.session_status)[string] }
+                session_status: sessionStatus
+                    ? { ...state.session_status, [currentSessionId]: sessionStatus as (typeof state.session_status)[string] }
                     : state.session_status,
                 permission: {
                     ...state.permission,
@@ -792,9 +793,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
                     opencodeClient.listPendingPermissions({ directories: [directory] }),
                     opencodeClient.listPendingQuestions({ directories: [directory] }),
                 ]).then(([statuses, permissions, questions]) => {
+                    const sessionStatus = statuses?.[currentSessionId];
                     syncStore.setState((state) => ({
-                        session_status: statuses[currentSessionId]
-                            ? { ...state.session_status, [currentSessionId]: statuses[currentSessionId] as (typeof state.session_status)[string] }
+                        session_status: sessionStatus
+                            ? { ...state.session_status, [currentSessionId]: sessionStatus as (typeof state.session_status)[string] }
                             : state.session_status,
                         permission: {
                             ...state.permission,

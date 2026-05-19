@@ -20,6 +20,7 @@ export interface CommandConfig {
   description?: string;
   agent?: string | null;
   model?: string | null;
+  source?: string;
   template?: string;
   scope?: CommandScope;
 }
@@ -169,8 +170,9 @@ export const useCommandsStore = create<CommandsStore>()(
                   () => opencodeClient.listCommandsWithDetails()
                 );
 
+                const configurableCommands = commands.filter((cmd) => cmd.source !== 'skill');
                 const commandsWithScope = await Promise.all(
-                  commands.map(async (cmd) => {
+                  configurableCommands.map(async (cmd) => {
                     try {
                       // Force no-cache
                       const response = await runtimeFetch(`/api/config/commands/${encodeURIComponent(cmd.name)}${queryParams}`, {

@@ -18,7 +18,7 @@ import { copyTextToClipboard } from '@/lib/clipboard';
 import { useI18n } from '@/lib/i18n';
 import { runtimeFetch } from '@/lib/runtime-fetch';
 
-import { isExternalHttpUrl, isLoopbackHttpUrl, openExternalUrl } from '@/lib/url';
+import { getExternalFaviconUrl, isExternalHttpUrl, isLoopbackHttpUrl, openExternalUrl } from '@/lib/url';
 import { useOptionalThemeSystem } from '@/contexts/useThemeSystem';
 import { getDefaultTheme } from '@/lib/theme/themes';
 import { generateSyntaxTheme } from '@/lib/theme/syntaxThemeGenerator';
@@ -91,6 +91,29 @@ const useExternalLinkInteractions = ({
       container.removeEventListener('click', handleClick);
     };
   }, [containerRef, enabled]);
+};
+
+const ExternalLinkFavicon: React.FC<{ href: string }> = ({ href }) => {
+  const [failed, setFailed] = React.useState(false);
+  const faviconUrl = React.useMemo(() => getExternalFaviconUrl(href), [href]);
+
+  if (!faviconUrl || failed) {
+    return null;
+  }
+
+  return (
+    <span className="mr-1 inline-flex size-[18px] items-center justify-center rounded border border-[var(--border)] bg-[var(--interactive-hover)] align-middle">
+      <img
+        src={faviconUrl}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        decoding="async"
+        className="size-3.5 rounded-sm"
+        onError={() => setFailed(true)}
+      />
+    </span>
+  );
 };
 
 // Table utility functions
@@ -936,15 +959,17 @@ const buildMarkdownComponents = ({
   },
   a({ href, children, ...props }) {
     const targetHref = href ?? '';
+    const isExternal = isExternalHttpUrl(targetHref);
     const isLoopback = onPreviewLoopback ? isLoopbackHttpUrl(targetHref) : false;
     return (
       <>
         <a
           {...props}
           href={href}
-          target={isExternalHttpUrl(targetHref) ? '_blank' : undefined}
-          rel={isExternalHttpUrl(targetHref) ? 'noopener noreferrer' : undefined}
+          target={isExternal ? '_blank' : undefined}
+          rel={isExternal ? 'noopener noreferrer' : undefined}
         >
+          {isExternal ? <ExternalLinkFavicon href={targetHref} /> : null}
           {children}
         </a>
         {isLoopback && onPreviewLoopback ? (
