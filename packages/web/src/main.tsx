@@ -3,6 +3,7 @@ import { registerSW } from 'virtual:pwa-register';
 
 import type { RuntimeAPIs } from '@openchamber/ui/lib/api/types';
 import { getStoredMobileLayoutPreference } from '@openchamber/ui/lib/mobileLayoutPreference';
+import type { HostedSurface } from '@openchamber/ui/lib/runtimeSurface';
 import '@openchamber/ui/index.css';
 import '@openchamber/ui/styles/fonts';
 
@@ -14,8 +15,6 @@ declare global {
 }
 
 window.__OPENCHAMBER_RUNTIME_APIS__ = createConfiguredWebAPIs();
-
-type HostedSurface = 'desktop' | 'mobile';
 
 const isCoarsePointer = (): boolean => {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {

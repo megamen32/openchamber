@@ -32,7 +32,7 @@ import { listProjectWorktrees } from '@/lib/worktrees/worktreeManager';
 import type { WorktreeMetadata } from '@/types/worktree';
 import { useUIStore } from '@/stores/useUIStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
-import { SyncProvider, useAllLiveSessions } from '@/sync/sync-context';
+import { SyncProvider, useSession } from '@/sync/sync-context';
 
 import { SyncAppEffects } from './AppEffects';
 import { MobileChangesSurface } from './MobileChangesSurface';
@@ -143,13 +143,8 @@ const MobileHeader: React.FC<{
   const { t } = useI18n();
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory);
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
-  const sessions = useAllLiveSessions();
   const projects = useProjectsStore((state) => state.projects);
-
-  const currentSession = React.useMemo(
-    () => sessions.find((session) => session.id === currentSessionId) ?? null,
-    [currentSessionId, sessions],
-  );
+  const currentSession = useSession(currentSessionId, currentDirectory || undefined);
 
   const projectLabel = React.useMemo(() => {
     const directory = normalizePath(currentDirectory);
@@ -287,7 +282,9 @@ const MobileShell: React.FC = () => {
           items={overflowItems}
         />
 
-        <MobileSessionsSheet open={sessionsSheetOpen} onOpenChange={setSessionsSheetOpen} />
+        {sessionsSheetOpen ? (
+          <MobileSessionsSheet open={sessionsSheetOpen} onOpenChange={setSessionsSheetOpen} />
+        ) : null}
 
         <MobileSurfaceShell
           open={filesOpen}

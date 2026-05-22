@@ -7,6 +7,7 @@ import { useStore } from "zustand"
 import type { OpencodeClient } from "@opencode-ai/sdk/v2/client"
 import { createEventPipeline } from "./event-pipeline"
 import { isVSCodeRuntime } from "@/lib/desktop"
+import { isMobileSurfaceRuntime } from "@/lib/runtimeSurface"
 import { reduceGlobalEvent, applyGlobalProject, applyDirectoryEvent } from "./event-reducer"
 import { useGlobalSyncStore, type GlobalSyncStore } from "./global-sync-store"
 import { ChildStoreManager, type DirectoryStore } from "./child-store"
@@ -1941,6 +1942,8 @@ type SessionMessageRecordsSnapshot = {
 const SESSION_MESSAGE_RECORDS_CACHE_MAX = 40
 const VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX = 4
 const VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES = 30
+const MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX = 4
+const MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES = 30
 const sessionMessageRecordsCache = new WeakMap<StoreApi<DirectoryStore>, Map<string, SessionMessageRecordsSnapshot>>()
 
 const getSessionMessageRecordsCacheKey = (sessionID: string, suspendPartUpdates: boolean): string => (
@@ -1978,13 +1981,22 @@ const rememberSessionMessageRecordsSnapshot = (
   if (!snapshot.sessionID) return
   const cache = getSessionMessageRecordsCache(store)
   const key = getSessionMessageRecordsCacheKey(snapshot.sessionID, snapshot.suspendPartUpdates)
-  if (isVSCodeRuntime() && snapshot.list.length > VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES) {
+  const constrainedMaxMessages = isVSCodeRuntime()
+    ? VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES
+    : isMobileSurfaceRuntime()
+      ? MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX_MESSAGES
+      : null
+  if (constrainedMaxMessages !== null && snapshot.list.length > constrainedMaxMessages) {
     cache.delete(key)
     return
   }
   cache.delete(key)
   cache.set(key, snapshot)
-  const max = isVSCodeRuntime() ? VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX : SESSION_MESSAGE_RECORDS_CACHE_MAX
+  const max = isVSCodeRuntime()
+    ? VSCODE_SESSION_MESSAGE_RECORDS_CACHE_MAX
+    : isMobileSurfaceRuntime()
+      ? MOBILE_SESSION_MESSAGE_RECORDS_CACHE_MAX
+      : SESSION_MESSAGE_RECORDS_CACHE_MAX
   while (cache.size > max) {
     const oldest = cache.keys().next().value
     if (typeof oldest !== "string") break
