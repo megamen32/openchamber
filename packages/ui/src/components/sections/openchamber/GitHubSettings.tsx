@@ -174,6 +174,25 @@ export const GitHubSettings: React.FC = () => {
     };
   }, [flow, pollIntervalMs, pollOnce, refreshStatus, runtimeGitHub, stopPolling, t]);
 
+  const toggleGhCli = React.useCallback(async (disabled: boolean) => {
+    setIsBusy(true);
+    try {
+      const response = await fetch('/api/github/auth/gh-cli', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ disabled }),
+      });
+      if (!response.ok) throw new Error(response.statusText);
+      toast.success(disabled ? t('settings.github.page.toast.ghCliDisabled') : t('settings.github.page.toast.ghCliEnabled'));
+      await refreshStatus(runtimeGitHub, { force: true });
+    } catch (error) {
+      console.error('Failed to update gh CLI setting:', error);
+      toast.error(t('settings.github.page.toast.ghCliUpdateFailed'));
+    } finally {
+      setIsBusy(false);
+    }
+  }, [refreshStatus, runtimeGitHub, t]);
+
   const disconnect = React.useCallback(async () => {
     setIsBusy(true);
     try {
@@ -239,6 +258,7 @@ export const GitHubSettings: React.FC = () => {
   const connected = Boolean(status?.connected);
   const user = status?.user;
   const accounts = status?.accounts ?? [];
+  const ghCli = status?.ghCli ?? null;
 
   return (
     <div className="mb-8">
@@ -409,6 +429,70 @@ export const GitHubSettings: React.FC = () => {
             }}>
               {t('settings.common.actions.cancel')}
             </Button>
+          </div>
+        </div>
+      )}
+
+      {ghCli?.available && (
+        <div className="mt-6">
+          <h3 className="typography-ui-header font-semibold text-foreground mb-3 px-1">
+            {t('settings.github.page.ghCli.title')}
+          </h3>
+          <div className="rounded-lg bg-[var(--surface-elevated)]/70 overflow-hidden">
+            <div className={cn("px-4 py-3", isMobile ? "flex flex-col gap-3" : "flex items-center justify-between gap-4")}>
+              <div className={cn("flex min-w-0 items-center gap-4", isMobile ? "w-full" : undefined)}>
+                {ghCli.active && ghCli.user?.avatarUrl ? (
+                  <img
+                    src={ghCli.user.avatarUrl}
+                    alt={ghCli.user.login ? t('settings.github.page.avatarAlt.withLogin', { login: ghCli.user.login }) : t('settings.github.page.avatarAlt.fallback')}
+                    className="h-10 w-10 shrink-0 rounded-full border border-[var(--interactive-border)] bg-[var(--surface-muted)] object-cover"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--interactive-border)] bg-[var(--surface-muted)]">
+                    <Icon name="terminal" className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  {ghCli.active && ghCli.user ? (
+                    <>
+                      <div className="typography-ui-label text-foreground">
+                        {ghCli.user.name?.trim() || ghCli.user.login || 'GitHub'}
+                      </div>
+                      <div className={cn("flex items-center gap-2 typography-meta text-muted-foreground mt-0.5", isMobile ? "flex-wrap" : "truncate")}>
+                        <Icon name="github-fill" className="h-3.5 w-3.5 shrink-0" />
+                        <span className="font-mono">{ghCli.user.login}</span>
+                        {ghCli.user.email && <span className="opacity-50">•</span>}
+                        {ghCli.user.email && <span>{ghCli.user.email}</span>}
+                      </div>
+                      <div className="typography-micro text-muted-foreground/70 mt-0.5">
+                        {t('settings.github.page.ghCli.activeDescription')}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={cn("typography-meta text-muted-foreground", ghCli.disabled ? "opacity-60" : undefined)}>
+                        {ghCli.disabled
+                          ? t('settings.github.page.ghCli.disabledDescription')
+                          : t('settings.github.page.ghCli.fallbackDescription')}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => toggleGhCli(!ghCli.disabled)}
+                disabled={isBusy}
+                className={cn(isMobile ? "w-full" : undefined)}
+              >
+                {ghCli.disabled
+                  ? t('settings.github.page.ghCli.actions.enable')
+                  : t('settings.github.page.ghCli.actions.disable')}
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -1035,6 +1035,12 @@ export type GitHubAuthStatus = {
   user?: GitHubUserSummary | null;
   scope?: string;
   accounts?: GitHubAuthAccount[];
+  ghCli?: {
+    available: boolean;
+    disabled: boolean;
+    active: boolean;
+    user?: GitHubUserSummary | null;
+  } | null;
 };
 
 export type GitHubAuthAccount = {
