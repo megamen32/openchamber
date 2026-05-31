@@ -1411,6 +1411,7 @@ export const settingsDict = {
   'settings.remoteInstances.clientAuth.state.loading': 'Ładowanie tokenów...',
   'settings.remoteInstances.clientAuth.state.empty': 'Nie podłączono jeszcze żadnych urządzeń.',
   'settings.remoteInstances.clientAuth.state.revoked': 'Unieważniony',
+  'settings.remoteInstances.clientAuth.state.thisDevice': 'To urządzenie',
   'settings.remoteInstances.clientAuth.lastUsed': 'Ostatnio użyto {date}',
   'settings.remoteInstances.clientAuth.neverUsed': 'Nigdy nie użyto',
   'settings.remoteInstances.sidebar.toast.retriedWithRandomPort': 'Ponowiono próbę z losowym lokalnym portem',

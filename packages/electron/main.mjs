@@ -148,6 +148,8 @@ const MINI_CHAT_MIN_WINDOW_WIDTH = 360;
 const MINI_CHAT_MIN_WINDOW_HEIGHT = 480;
 const MAX_CAPTURE_PAGE_RECT_AREA = 4_000_000;
 const LOCAL_HOST_ID = 'local';
+const LOCAL_DESKTOP_CLIENT_KIND = 'desktop-local';
+const LOCAL_DESKTOP_CLIENT_DEDUPE_KEY = 'desktop-local';
 const ENV_OVERRIDE_HOST_ID = '__env';
 const CHANGELOG_URL = 'https://raw.githubusercontent.com/openchamber/openchamber/main/CHANGELOG.md';
 const UPDATE_METADATA_URL = 'https://github.com/openchamber/openchamber/releases/latest/download/latest.json';
@@ -1313,6 +1315,10 @@ const loginRemoteAndIssueClientToken = async ({ url, password, trustDevice }) =>
       trustDevice: trustDevice === true,
       issueClientToken: true,
       clientLabel: 'OpenChamber Desktop',
+      ...(isLocalRuntimeUrl(baseUrl) ? {
+        clientKind: LOCAL_DESKTOP_CLIENT_KIND,
+        dedupeKey: LOCAL_DESKTOP_CLIENT_DEDUPE_KEY,
+      } : {}),
     }),
   });
   if (!loginResponse.ok) {
@@ -1337,7 +1343,13 @@ const loginRemoteAndIssueClientToken = async ({ url, password, trustDevice }) =>
       'Content-Type': 'application/json',
       Cookie: cookie,
     },
-    body: JSON.stringify({ label: 'OpenChamber Desktop' }),
+    body: JSON.stringify({
+      label: 'OpenChamber Desktop',
+      ...(isLocalRuntimeUrl(baseUrl) ? {
+        clientKind: LOCAL_DESKTOP_CLIENT_KIND,
+        dedupeKey: LOCAL_DESKTOP_CLIENT_DEDUPE_KEY,
+      } : {}),
+    }),
   });
   if (!tokenResponse.ok) {
     return { ok: false, status: tokenResponse.status };
@@ -2911,11 +2923,10 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
 
     case 'desktop_hosts_set': {
       const nextConfigInput = args.input || args.config || {};
-      const updatesLocalToken = Object.prototype.hasOwnProperty.call(nextConfigInput, 'localClientToken');
       await writeDesktopHostsConfig(nextConfigInput);
       const updatedConfig = readDesktopHostsConfig();
       const envTarget = normalizeHostUrl(process.env.OPENCHAMBER_SERVER_URL || '');
-      if (updatesLocalToken && isLocalRuntimeUrl(state.apiBaseUrl || state.sidecarUrl || state.localOrigin || '')) {
+      if (Object.prototype.hasOwnProperty.call(nextConfigInput, 'localClientToken') && isLocalRuntimeUrl(state.apiBaseUrl || state.sidecarUrl || state.localOrigin || '')) {
         state.clientToken = readDesktopLocalClientToken();
       }
       state.bootOutcome = computeBootOutcome({

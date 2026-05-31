@@ -63,4 +63,23 @@ describe('remote client auth runtime', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('keeps one client per dedupe key', async () => {
+    const { dir, runtime } = await createRuntime();
+    try {
+      const first = await runtime.createClient({ label: 'Desktop', clientKind: 'desktop-local', dedupeKey: 'desktop-local' });
+      const second = await runtime.createClient({ label: 'Desktop', clientKind: 'desktop-local', dedupeKey: 'desktop-local' });
+
+      expect(await runtime.authenticateBearerToken(first.token)).toBe(null);
+      const authenticated = await runtime.authenticateBearerToken(second.token);
+      expect(authenticated?.ok).toBe(true);
+
+      const listed = await runtime.listClients();
+      expect(listed).toHaveLength(1);
+      expect(listed[0].id).toBe(second.client.id);
+      expect(listed[0].clientKind).toBe('desktop-local');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
 });

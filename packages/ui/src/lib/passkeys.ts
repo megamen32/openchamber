@@ -33,6 +33,8 @@ export type StoredPasskey = {
 type PasskeyAuthenticationOptions = {
   issueClientToken?: boolean;
   clientLabel?: string;
+  clientKind?: string;
+  dedupeKey?: string;
 };
 
 export const defaultPasskeyStatus: PasskeyStatus = {
@@ -133,6 +135,8 @@ export const authenticateWithPasskey = async (trustDevice: boolean, options: Pas
     trustDevice,
     issueClientToken: options.issueClientToken === true,
     clientLabel: options.clientLabel,
+    clientKind: options.clientKind,
+    dedupeKey: options.dedupeKey,
   });
 
   if (!verifyResponse.ok) {

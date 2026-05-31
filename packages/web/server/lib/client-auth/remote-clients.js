@@ -18,6 +18,12 @@ const normalizeTimestamp = (value) => {
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
 };
 
+const normalizeOptionalString = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 const safeJsonParse = (raw) => {
   try {
     return JSON.parse(raw);
@@ -53,6 +59,8 @@ export const createRemoteClientAuthRuntime = ({ fsPromises, path, crypto, storeP
           lastUsedAt: typeof client.lastUsedAt === 'string' ? client.lastUsedAt : null,
           revokedAt: typeof client.revokedAt === 'string' ? client.revokedAt : null,
           expiresAt: normalizeTimestamp(client.expiresAt),
+          clientKind: normalizeOptionalString(client.clientKind),
+          dedupeKey: normalizeOptionalString(client.dedupeKey),
         }))
         .filter((client) => client.tokenHash.length > 0)
       : [],
@@ -80,6 +88,7 @@ export const createRemoteClientAuthRuntime = ({ fsPromises, path, crypto, storeP
     lastUsedAt: client.lastUsedAt,
     revokedAt: client.revokedAt,
     expiresAt: client.expiresAt,
+    clientKind: client.clientKind,
   });
 
   const listClients = async () => {
@@ -87,8 +96,9 @@ export const createRemoteClientAuthRuntime = ({ fsPromises, path, crypto, storeP
     return store.clients.map(publicClient);
   };
 
-  const createClient = async ({ label, expiresAt } = {}) => {
+  const createClient = async ({ label, expiresAt, clientKind, dedupeKey } = {}) => {
     const store = await readStore();
+    const normalizedDedupeKey = normalizeOptionalString(dedupeKey);
     const token = generateToken();
     const client = {
       id: generateId(),
@@ -98,7 +108,12 @@ export const createRemoteClientAuthRuntime = ({ fsPromises, path, crypto, storeP
       lastUsedAt: null,
       revokedAt: null,
       expiresAt: normalizeTimestamp(expiresAt),
+      clientKind: normalizeOptionalString(clientKind),
+      dedupeKey: normalizedDedupeKey,
     };
+    if (normalizedDedupeKey) {
+      store.clients = store.clients.filter((entry) => entry.dedupeKey !== normalizedDedupeKey);
+    }
     store.clients.push(client);
     await writeStore(store);
     return { client: publicClient(client), token };

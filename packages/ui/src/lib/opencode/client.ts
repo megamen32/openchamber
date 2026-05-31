@@ -17,7 +17,6 @@ import type { QuestionRequest } from "@/types/question";
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap";
 import { getRuntimeUrlResolver } from "@/lib/runtime-url";
 import { runtimeFetch } from "@/lib/runtime-fetch";
-import { getRuntimeBearerTokenSync } from "@/lib/runtime-auth";
 import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry";
 import {
   assertProviderCircuitClosed,
@@ -154,10 +153,8 @@ const resolveRuntimeBaseUrl = (): string | null => {
 };
 
 const createRuntimeOpencodeClient = (config: { baseUrl: string; directory?: string }): OpencodeClient => {
-  const token = getRuntimeBearerTokenSync();
   return createOpencodeClient({
     ...config,
-    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
     fetch: runtimeFetch,
   });
 };

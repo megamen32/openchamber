@@ -239,6 +239,7 @@ export const settingsDict = {
   'settings.remoteInstances.clientAuth.state.loading': '正在加载令牌...',
   'settings.remoteInstances.clientAuth.state.empty': '尚无已连接设备。',
   'settings.remoteInstances.clientAuth.state.revoked': '已撤销',
+  'settings.remoteInstances.clientAuth.state.thisDevice': '此设备',
   'settings.remoteInstances.clientAuth.lastUsed': '上次使用 {date}',
   'settings.remoteInstances.clientAuth.neverUsed': '从未使用',
   'settings.remoteInstances.sidebar.phase.ready': '就绪',

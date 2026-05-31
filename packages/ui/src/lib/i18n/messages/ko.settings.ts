@@ -239,6 +239,7 @@ export const settingsDict = {
   'settings.remoteInstances.clientAuth.state.loading': '토큰을 불러오는 중...',
   'settings.remoteInstances.clientAuth.state.empty': '아직 연결된 기기가 없습니다.',
   'settings.remoteInstances.clientAuth.state.revoked': '해지됨',
+  'settings.remoteInstances.clientAuth.state.thisDevice': '이 기기',
   'settings.remoteInstances.clientAuth.lastUsed': '마지막 사용 {date}',
   'settings.remoteInstances.clientAuth.neverUsed': '사용한 적 없음',
   'settings.remoteInstances.sidebar.phase.ready': '준비됨',

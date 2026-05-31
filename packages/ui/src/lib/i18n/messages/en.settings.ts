@@ -272,6 +272,7 @@ export const settingsDict = {
   'settings.remoteInstances.clientAuth.state.loading': 'Loading tokens...',
   'settings.remoteInstances.clientAuth.state.empty': 'No devices connected yet.',
   'settings.remoteInstances.clientAuth.state.revoked': 'Revoked',
+  'settings.remoteInstances.clientAuth.state.thisDevice': 'This device',
   'settings.remoteInstances.clientAuth.lastUsed': 'Last used {date}',
   'settings.remoteInstances.clientAuth.neverUsed': 'Never used',
   'settings.remoteInstances.sidebar.phase.ready': 'Ready',

@@ -26,6 +26,44 @@ import {
 
 const STATUS_CHECK_ENDPOINT = '/auth/session';
 const TRUST_DEVICE_STORAGE_KEY = 'openchamber.uiAuth.trustDevice';
+const LOCAL_DESKTOP_CLIENT_KIND = 'desktop-local';
+const LOCAL_DESKTOP_CLIENT_DEDUPE_KEY = 'desktop-local';
+
+const readLocalOrigin = (): string => {
+  if (typeof window === 'undefined') return '';
+  const injected = (window as typeof window & { __OPENCHAMBER_LOCAL_ORIGIN__?: string }).__OPENCHAMBER_LOCAL_ORIGIN__;
+  return typeof injected === 'string' ? injected.trim() : '';
+};
+
+const sameOrigin = (left: string, right: string): boolean => {
+  const normalizedLeft = normalizeHostUrl(left);
+  const normalizedRight = normalizeHostUrl(right);
+  if (!normalizedLeft || !normalizedRight) return false;
+  try {
+    return new URL(normalizedLeft).origin === new URL(normalizedRight).origin;
+  } catch {
+    return false;
+  }
+};
+
+const shouldIssueDesktopClientToken = (): boolean => {
+  return isDesktopShell();
+};
+
+const isLocalDesktopRuntime = (): boolean => {
+  if (!isDesktopShell()) return false;
+  const apiBaseUrl = getRuntimeApiBaseUrl();
+  const localOrigin = readLocalOrigin();
+  return Boolean(localOrigin && sameOrigin(localOrigin, apiBaseUrl));
+};
+
+const desktopClientAuthMetadata = (): { clientKind?: string; dedupeKey?: string } => {
+  if (!isLocalDesktopRuntime()) return {};
+  return {
+    clientKind: LOCAL_DESKTOP_CLIENT_KIND,
+    dedupeKey: LOCAL_DESKTOP_CLIENT_DEDUPE_KEY,
+  };
+};
 
 const fetchSessionStatus = async (): Promise<Response> => {
   const response = await runtimeFetch(STATUS_CHECK_ENDPOINT, {
@@ -46,6 +84,7 @@ const readStoredTrustDevice = (): boolean => {
 };
 
 const submitPassword = async (password: string, trustDevice: boolean): Promise<Response> => {
+  const issueClientToken = shouldIssueDesktopClientToken();
   const response = await runtimeFetch(STATUS_CHECK_ENDPOINT, {
     method: 'POST',
     credentials: 'include',
@@ -56,8 +95,9 @@ const submitPassword = async (password: string, trustDevice: boolean): Promise<R
     body: JSON.stringify({
       password,
       trustDevice,
-      issueClientToken: isDesktopShell(),
+      issueClientToken,
       clientLabel: 'OpenChamber Desktop',
+      ...desktopClientAuthMetadata(),
     }),
   });
   return response;
@@ -75,7 +115,7 @@ const issueDesktopClientToken = async (): Promise<string> => {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
-    body: JSON.stringify({ label: 'OpenChamber Desktop' }),
+    body: JSON.stringify({ label: 'OpenChamber Desktop', ...desktopClientAuthMetadata() }),
   }).catch(() => null);
   if (!response?.ok) {
     return '';
@@ -103,17 +143,6 @@ const issueDesktopClientTokenViaShell = async (password: string, trustDevice: bo
   }
   const token = (response as { token?: unknown }).token;
   return typeof token === 'string' ? token.trim() : '';
-};
-
-const sameOrigin = (left: string, right: string): boolean => {
-  const normalizedLeft = normalizeHostUrl(left);
-  const normalizedRight = normalizeHostUrl(right);
-  if (!normalizedLeft || !normalizedRight) return false;
-  try {
-    return new URL(normalizedLeft).origin === new URL(normalizedRight).origin;
-  } catch {
-    return false;
-  }
 };
 
 const persistDesktopClientToken = async (apiBaseUrl: string, clientToken: string): Promise<void> => {
@@ -452,9 +481,12 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
       const response = await submitPassword(password, trustDevice);
       if (response.ok) {
         const payload = await response.json().catch(() => null) as { clientToken?: unknown } | null;
-        const clientToken = typeof payload?.clientToken === 'string' && payload.clientToken.trim()
-          ? payload.clientToken.trim()
-          : await issueDesktopClientTokenViaShell(password, trustDevice) || await issueDesktopClientToken();
+        const shouldUseClientToken = shouldIssueDesktopClientToken();
+        const clientToken = shouldUseClientToken
+          ? (typeof payload?.clientToken === 'string' && payload.clientToken.trim()
+            ? payload.clientToken.trim()
+            : await issueDesktopClientTokenViaShell(password, trustDevice) || await issueDesktopClientToken())
+          : '';
         setPassword('');
         setIsTunnelLocked(false);
         if (clientToken) {
@@ -525,10 +557,11 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
 
     try {
       const payload = await authenticateWithPasskey(trustDevice, {
-        issueClientToken: isDesktopShell(),
+        issueClientToken: shouldIssueDesktopClientToken(),
         clientLabel: 'OpenChamber Desktop',
+        ...desktopClientAuthMetadata(),
       }) as { clientToken?: unknown } | null;
-      const clientToken = typeof payload?.clientToken === 'string' && payload.clientToken.trim()
+      const clientToken = shouldIssueDesktopClientToken() && typeof payload?.clientToken === 'string' && payload.clientToken.trim()
         ? payload.clientToken.trim()
         : '';
       if (clientToken) {

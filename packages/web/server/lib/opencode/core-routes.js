@@ -449,7 +449,11 @@ export const registerAuthAndAccessRoutes = (app, dependencies) => {
 
   app.post('/api/client-auth/clients', express.json({ limit: '64kb' }), async (req, res, next) => {
     await runWithUiAuth(req, res, next, async () => {
-      const result = await remoteClientAuthRuntime.createClient({ label: req.body?.label });
+      const result = await remoteClientAuthRuntime.createClient({
+        label: req.body?.label,
+        clientKind: req.body?.clientKind,
+        dedupeKey: req.body?.dedupeKey,
+      });
       res.setHeader('Cache-Control', 'no-store');
       res.status(201).json(result);
     });

@@ -637,6 +637,8 @@ export const createUiAuth = ({
       clientTokenResult = await clientAuthController.createClient({
         label: req.body?.clientLabel,
         expiresAt: new Date(Date.now() + ttlMs).toISOString(),
+        clientKind: req.body?.clientKind,
+        dedupeKey: req.body?.dedupeKey,
       });
     }
     res.setHeader('Cache-Control', 'no-store');
@@ -698,6 +700,8 @@ export const createUiAuth = ({
         clientTokenResult = await clientAuthController.createClient({
           label: req.body?.clientLabel,
           expiresAt: new Date(Date.now() + ttlMs).toISOString(),
+          clientKind: req.body?.clientKind,
+          dedupeKey: req.body?.dedupeKey,
         });
       }
       res.json({

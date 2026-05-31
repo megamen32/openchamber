@@ -1089,6 +1089,7 @@ export interface RemoteClientRecord {
   lastUsedAt: string | null;
   revokedAt: string | null;
   expiresAt?: string | null;
+  clientKind?: string | null;
 }
 
 export interface RemoteClientCreateResult {

@@ -47,7 +47,7 @@ import {
   type DesktopHost,
 } from '@/lib/desktopHosts';
 import { isDesktopShell } from '@/lib/desktop';
-import { getRuntimeApiBaseUrl } from '@/lib/runtime-switch';
+import { getRuntimeApiBaseUrl, switchRuntimeEndpoint } from '@/lib/runtime-switch';
 
 const randomPort = (): number => {
   return Math.floor(20000 + Math.random() * 30000);
@@ -527,11 +527,26 @@ export const RemoteInstancesPage: React.FC = () => {
     }
   }, [clientAuth, loadRemoteClients, remoteClientLabel]);
 
-  const revokeRemoteClient = React.useCallback(async (id: string) => {
+  const revokeRemoteClient = React.useCallback(async (client: RemoteClientRecord) => {
     if (!clientAuth) return;
+    const isLocalDesktopClient = client.clientKind === 'desktop-local';
     setRemoteClientError(null);
     try {
-      await clientAuth.revokeClient(id);
+      await clientAuth.revokeClient(client.id);
+      if (isLocalDesktopClient && isDesktopShell()) {
+        const config = await desktopHostsGet();
+        await desktopHostsSet({
+          hosts: config.hosts,
+          defaultHostId: config.defaultHostId,
+          initialHostChoiceCompleted: config.initialHostChoiceCompleted,
+          localClientToken: null,
+        });
+        setRemoteClients((clients) => clients.map((entry) => entry.id === client.id
+          ? { ...entry, revokedAt: new Date().toISOString() }
+          : entry));
+        switchRuntimeEndpoint({ apiBaseUrl: getRuntimeApiBaseUrl(), clientToken: null, runtimeKey: 'local' });
+        return;
+      }
       await loadRemoteClients();
     } catch (err) {
       setRemoteClientError(err instanceof Error ? err.message : String(err));
@@ -987,17 +1002,27 @@ export const RemoteInstancesPage: React.FC = () => {
                   <p className="typography-meta text-muted-foreground">{t('settings.remoteInstances.clientAuth.state.loading')}</p>
                 ) : remoteClients.length === 0 ? (
                   <p className="typography-meta text-muted-foreground">{t('settings.remoteInstances.clientAuth.state.empty')}</p>
-                ) : remoteClients.map((client) => (
-                  <div key={client.id} className="flex items-center justify-between gap-3 py-1.5">
-                    <div className="min-w-0">
-                      <p className="typography-ui-label text-foreground truncate">{client.label}</p>
-                      <p className="typography-micro text-muted-foreground truncate">{client.revokedAt ? t('settings.remoteInstances.clientAuth.state.revoked') : client.lastUsedAt ? t('settings.remoteInstances.clientAuth.lastUsed', { date: client.lastUsedAt }) : t('settings.remoteInstances.clientAuth.neverUsed')}</p>
+                ) : remoteClients.map((client) => {
+                  const isLocalDesktopClient = client.clientKind === 'desktop-local';
+                  return (
+                    <div key={client.id} className="flex items-center justify-between gap-3 py-1.5">
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="typography-ui-label text-foreground truncate">{client.label}</p>
+                          {isLocalDesktopClient ? (
+                            <span className="typography-micro text-muted-foreground bg-muted px-1 rounded flex-shrink-0 leading-none pb-px border border-border/50">
+                              {t('settings.remoteInstances.clientAuth.state.thisDevice')}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="typography-micro text-muted-foreground truncate">{client.revokedAt ? t('settings.remoteInstances.clientAuth.state.revoked') : client.lastUsedAt ? t('settings.remoteInstances.clientAuth.lastUsed', { date: client.lastUsedAt }) : t('settings.remoteInstances.clientAuth.neverUsed')}</p>
+                      </div>
+                      <Button type="button" variant="ghost" size="xs" className="!font-normal" onClick={() => void revokeRemoteClient(client)} disabled={Boolean(client.revokedAt)}>
+                        {t('settings.remoteInstances.clientAuth.actions.revoke')}
+                      </Button>
                     </div>
-                    <Button type="button" variant="ghost" size="xs" className="!font-normal" onClick={() => void revokeRemoteClient(client.id)} disabled={Boolean(client.revokedAt)}>
-                      {t('settings.remoteInstances.clientAuth.actions.revoke')}
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {remoteClientError ? <p className="typography-meta text-[var(--status-error)]">{remoteClientError}</p> : null}
             </section>
