@@ -5,6 +5,7 @@ import {
   classifyPreviewResourceError,
   normalizeProxyTargetUrl,
   rewritePreviewBody,
+  rewritePreviewCspHeader,
   rewritePreviewRedirectLocation,
 } from './proxy-runtime.js';
 
@@ -274,5 +275,43 @@ describe('proxy target normalization (SSRF guard)', () => {
 
   it('still blocks private hosts even via IPv4-mapped IPv6', () => {
     expect(normalizeProxyTargetUrl('http://[::ffff:127.0.0.1]/', { allowExternal: true }).ok).toBe(false);
+  });
+});
+
+describe('preview CSP rewrite', () => {
+  it('drops frame-ancestors and require-trusted-types-for but keeps the rest', () => {
+    const result = rewritePreviewCspHeader(
+      "default-src 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'",
+      'abc123',
+    );
+    expect(result).not.toContain('frame-ancestors');
+    expect(result).not.toContain('require-trusted-types-for');
+    expect(result).toContain("default-src 'self'");
+  });
+
+  it('adds the nonce to an existing script-src instead of removing it', () => {
+    const result = rewritePreviewCspHeader("script-src 'self'", 'abc123');
+    expect(result).toContain("script-src 'self' 'nonce-abc123'");
+  });
+
+  it('adds the nonce to script-src-elem when present', () => {
+    const result = rewritePreviewCspHeader("script-src-elem 'self'", 'abc123');
+    expect(result).toContain("script-src-elem 'self' 'nonce-abc123'");
+  });
+
+  it('synthesizes script-src from default-src when no script directive exists', () => {
+    const result = rewritePreviewCspHeader("default-src 'self' https://cdn.example.com", 'abc123');
+    expect(result).toContain("default-src 'self' https://cdn.example.com");
+    expect(result).toContain("script-src 'self' https://cdn.example.com 'nonce-abc123'");
+  });
+
+  it("drops a lone 'none' so the nonce takes effect", () => {
+    const result = rewritePreviewCspHeader("script-src 'none'", 'abc123');
+    expect(result).toBe("script-src 'nonce-abc123'");
+  });
+
+  it('returns empty/unset CSP values unchanged', () => {
+    expect(rewritePreviewCspHeader('', 'abc123')).toBe('');
+    expect(rewritePreviewCspHeader(undefined, 'abc123')).toBe(undefined);
   });
 });

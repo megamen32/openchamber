@@ -1480,6 +1480,38 @@ const switchToHostById = async (rawId) => {
   await activateMainWindow(targetUrl, state.localOrigin, bootOutcome, { apiBaseUrl, clientToken });
 };
 
+const confirmConnectDeepLink = async (payload) => {
+  // A connect deep-link can be triggered from a browser/email/chat with no
+  // in-app interaction. Importing it stores a client token and points all of
+  // this app's API traffic at the given server, so require explicit consent
+  // BEFORE writing anything to the hosts config. Never surface the token.
+  const visible = BrowserWindow.getAllWindows().find((window) => !window.isDestroyed() && window.isVisible());
+  if (visible) {
+    visible.show();
+    visible.focus();
+  }
+  const options = {
+    type: 'warning',
+    title: 'Connect to OpenChamber server?',
+    message: `Connect to "${payload.label}"?`,
+    detail:
+      `This will add ${payload.serverUrl} as a remote instance and route this app's activity ` +
+      'through it. Only continue if you trust this server and started the connection yourself.',
+    buttons: ['Connect', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+  };
+  try {
+    const result = visible
+      ? await dialog.showMessageBox(visible, options)
+      : await dialog.showMessageBox(options);
+    return result.response === 0;
+  } catch (error) {
+    log.warn('[electron] connect deep-link confirmation failed:', error);
+    return false;
+  }
+};
+
 const dispatchDeepLink = (link) => {
   if (!link) return;
   log.info('[electron] dispatching deep-link', { type: link.type, valueLen: link.value?.length || 0 });
@@ -1489,8 +1521,14 @@ const dispatchDeepLink = (link) => {
       log.warn('[electron] invalid connect deep-link payload');
       return;
     }
-    void importConnectDeepLink(payload).then((id) => {
-      if (id) void switchToHostById(id);
+    void confirmConnectDeepLink(payload).then((confirmed) => {
+      if (!confirmed) {
+        log.info('[electron] connect deep-link declined by user');
+        return;
+      }
+      return importConnectDeepLink(payload).then((id) => {
+        if (id) void switchToHostById(id);
+      });
     });
     return;
   }

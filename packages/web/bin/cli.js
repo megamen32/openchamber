@@ -3446,8 +3446,14 @@ const commands = {
 
     const effectiveUiPassword = hasUiPasswordConfigured(options.uiPassword) ? options.uiPassword : undefined;
     if (!effectiveUiPassword && !options.suppressUiPasswordWarning) {
+      const bindHost = resolveConfiguredBindHost(options.host);
+      const loopbackHosts = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+      const networkExposed = isWildcardBindHost(bindHost) || !loopbackHosts.has(bindHost);
       const warningLine = 'OPENCHAMBER_UI_PASSWORD is not set';
-      const warningDetail = 'browser UI is unsecured. Use --ui-password or OPENCHAMBER_UI_PASSWORD.';
+      const warningDetail = networkExposed
+        ? `server is bound to ${bindHost} and reachable on your network with no UI auth. `
+          + 'Set --ui-password or OPENCHAMBER_UI_PASSWORD before exposing it over LAN.'
+        : 'browser UI is unsecured. Use --ui-password or OPENCHAMBER_UI_PASSWORD.';
       if (showOutput) {
         logStatus('warning', warningLine, warningDetail);
       } else if (isJsonMode(options)) {

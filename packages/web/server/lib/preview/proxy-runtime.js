@@ -1084,6 +1084,44 @@ export const rewritePreviewBody = ({ bodyText, proxyBasePath, targetOrigin, kind
   return bodyText;
 };
 
+// Rewrite a dev server's CSP so the injected preview bridge can run via a
+// per-response nonce, while keeping the dev server's own script restrictions.
+// frame-ancestors is dropped (it blocks embedding) and require-trusted-types-for
+// is dropped (it can block the bridge's DOM use); everything else is preserved.
+export const rewritePreviewCspHeader = (cspValue, nonce) => {
+  if (typeof cspValue !== 'string' || cspValue.length === 0) return cspValue;
+  const nonceSource = nonce ? `'nonce-${nonce}'` : '';
+  const directives = cspValue
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const tokens = part.split(/\s+/);
+      return { name: (tokens[0] || '').toLowerCase(), tokens };
+    })
+    .filter((directive) => directive.name !== 'frame-ancestors' && directive.name !== 'require-trusted-types-for');
+
+  if (nonceSource) {
+    const byName = new Map(directives.map((directive) => [directive.name, directive]));
+    const allowNonce = (directive) => {
+      // Drop a lone 'none' so the nonce takes effect, then add our nonce.
+      directive.tokens = directive.tokens.filter((token) => token.toLowerCase() !== "'none'");
+      if (!directive.tokens.includes(nonceSource)) directive.tokens.push(nonceSource);
+    };
+    const scriptElem = byName.get('script-src-elem');
+    const scriptSrc = byName.get('script-src');
+    if (scriptElem) allowNonce(scriptElem);
+    if (scriptSrc) allowNonce(scriptSrc);
+    if (!scriptElem && !scriptSrc && byName.has('default-src')) {
+      const base = byName.get('default-src').tokens.slice(1).filter((token) => token.toLowerCase() !== "'none'");
+      directives.push({ name: 'script-src', tokens: ['script-src', ...base, nonceSource] });
+    }
+  }
+
+  const rebuilt = directives.map((directive) => directive.tokens.join(' '));
+  return rebuilt.length > 0 ? rebuilt.join('; ') : null;
+};
+
 export const rewritePreviewRedirectLocation = ({ location, proxyBasePath, targetOrigin, previewToken = '', urlAuthToken = '' }) => {
   if (typeof location !== 'string' || !location) return location;
   const prefix = proxyBasePath.endsWith('/') ? proxyBasePath.slice(0, -1) : proxyBasePath;
@@ -1192,26 +1230,9 @@ export const createPreviewProxyRuntime = ({
     return parts.length > 0 ? `?${parts.join('&')}` : '';
   };
 
-  const rewritePreviewCspHeader = (cspValue) => {
-    if (typeof cspValue !== 'string' || cspValue.length === 0) return cspValue;
-    const filtered = cspValue
-      .split(';')
-      .map((part) => part.trim())
-      .filter((part) => {
-        if (!part) return false;
-        const name = part.split(/\s+/, 1)[0]?.toLowerCase() || '';
-        return name !== 'frame-ancestors'
-          && name !== 'script-src'
-          && name !== 'script-src-elem'
-          && name !== 'default-src'
-          && name !== 'require-trusted-types-for';
-      });
-    return filtered.length > 0 ? filtered.join('; ') : null;
-  };
-
   // Drop only CSP directives that prevent framing or the injected preview bridge.
   // Preview targets are restricted to loopback dev servers.
-  const stripFrameBustingHeaders = (headers) => {
+  const stripFrameBustingHeaders = (headers, bridgeNonce) => {
     if (!headers || typeof headers !== 'object') {
       return;
     }
@@ -1227,7 +1248,7 @@ export const createPreviewProxyRuntime = ({
         const original = headers[key];
         const values = Array.isArray(original) ? original : [original];
         const rewritten = values
-          .map((value) => rewritePreviewCspHeader(value))
+          .map((value) => rewritePreviewCspHeader(value, bridgeNonce))
           .filter((value) => typeof value === 'string' && value.length > 0);
         if (rewritten.length === 0) {
           delete headers[key];
@@ -1247,13 +1268,14 @@ export const createPreviewProxyRuntime = ({
   }) => {
     ensureSweeper();
 
-    const injectPreviewBridge = (bodyText, targetOrigin) => {
+    const injectPreviewBridge = (bodyText, targetOrigin, bridgeNonce) => {
       if (typeof bodyText !== 'string' || bodyText.includes(PREVIEW_BRIDGE_SCRIPT_ID)) {
         return bodyText;
       }
 
-      const targetOriginScript = `<script>window.__openchamberPreviewTargetOrigin=${JSON.stringify(targetOrigin || '')};</script>`;
-      const script = `${targetOriginScript}<script id="${PREVIEW_BRIDGE_SCRIPT_ID}">${PREVIEW_BRIDGE_SCRIPT}</script>`;
+      const nonceAttr = bridgeNonce ? ` nonce="${bridgeNonce}"` : '';
+      const targetOriginScript = `<script${nonceAttr}>window.__openchamberPreviewTargetOrigin=${JSON.stringify(targetOrigin || '')};</script>`;
+      const script = `${targetOriginScript}<script id="${PREVIEW_BRIDGE_SCRIPT_ID}"${nonceAttr}>${PREVIEW_BRIDGE_SCRIPT}</script>`;
       if (/<head(?:\s[^>]*)?>/i.test(bodyText)) {
         return bodyText.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${script}`);
       }
@@ -1384,10 +1406,13 @@ export const createPreviewProxyRuntime = ({
           proxyReq.setHeader('accept-encoding', 'identity');
         },
         proxyRes: responseInterceptor(async (responseBuffer, proxyRes, req) => {
+          // Per-response nonce lets the injected bridge run under the dev
+          // server's CSP without dropping its script restrictions wholesale.
+          const bridgeNonce = crypto.randomBytes(16).toString('base64');
           // Allow the dev server response to be framed inside OpenChamber even
           // if it normally sets X-Frame-Options or a CSP frame-ancestors rule.
           // The proxy is same-origin so embedding is otherwise safe.
-          stripFrameBustingHeaders(proxyRes.headers);
+          stripFrameBustingHeaders(proxyRes.headers, bridgeNonce);
 
           const resolved = resolveTargetFromRequest(req);
           if (!resolved.ok) {
@@ -1441,7 +1466,7 @@ export const createPreviewProxyRuntime = ({
             previewToken: resolved.entry.token,
             urlAuthToken,
           });
-          return isHtml ? injectPreviewBridge(rewrittenBody, resolved.entry.origin) : rewrittenBody;
+          return isHtml ? injectPreviewBridge(rewrittenBody, resolved.entry.origin, bridgeNonce) : rewrittenBody;
         }),
         error: (err, _req, res) => {
           const isDev = typeof process !== 'undefined'
