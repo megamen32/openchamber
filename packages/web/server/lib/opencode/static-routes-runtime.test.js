@@ -18,14 +18,31 @@ const createRuntime = () => createStaticRoutesRuntime({
 });
 
 describe('static routes runtime', () => {
-  it('returns API-only fallback for UI routes', async () => {
+  it('returns API-only HTML fallback for browser UI routes', async () => {
     const app = express();
     createRuntime().registerApiOnlyFallbackRoutes(app);
 
-    const response = await request(app).get('/sessions/abc');
+    const response = await request(app).get('/sessions/abc').set('Accept', 'text/html');
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: 'OpenChamber is running in API-only mode' });
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('OpenChamber is running in headless mode');
+    expect(response.text).toContain('Open it from the OpenChamber desktop or mobile app');
+    expect(response.text).toContain('openchamber connect-url --help');
+    expect(response.text).toContain('Copy command');
+  });
+
+  it('returns API-only info JSON for JSON clients', async () => {
+    const app = express();
+    createRuntime().registerApiOnlyFallbackRoutes(app);
+
+    const response = await request(app).get('/sessions/abc').set('Accept', 'application/json');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      ok: true,
+      mode: 'api-only',
+      message: 'OpenChamber is running in API-only mode',
+    });
   });
 
   it('does not intercept API, auth, or health routes in API-only mode', async () => {
@@ -36,8 +53,8 @@ describe('static routes runtime', () => {
     const auth = await request(app).get('/auth/session');
     const health = await request(app).get('/health');
 
-    expect(api.body).not.toEqual({ error: 'OpenChamber is running in API-only mode' });
-    expect(auth.body).not.toEqual({ error: 'OpenChamber is running in API-only mode' });
-    expect(health.body).not.toEqual({ error: 'OpenChamber is running in API-only mode' });
+    expect(api.body).not.toEqual({ ok: true, mode: 'api-only', message: 'OpenChamber is running in API-only mode' });
+    expect(auth.body).not.toEqual({ ok: true, mode: 'api-only', message: 'OpenChamber is running in API-only mode' });
+    expect(health.body).not.toEqual({ ok: true, mode: 'api-only', message: 'OpenChamber is running in API-only mode' });
   });
 });

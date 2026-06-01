@@ -25,6 +25,34 @@ describe('cli args', () => {
     expect(parsed.options.server).toBe('http://homebridge:3002');
   });
 
+  it('parses connect-url api-only help', () => {
+    const parsed = parseArgs(['connect-url', '--api-only', '--help']);
+
+    expect(parsed.command).toBe('connect-url');
+    expect(parsed.options.apiOnly).toBe(true);
+    expect(parsed.helpRequested).toBe(true);
+  });
+
+  it('parses startup api-only option', () => {
+    const parsed = parseArgs(['startup', 'enable', '--api-only', '--port', '3002']);
+
+    expect(parsed.command).toBe('startup');
+    expect(parsed.startupAction).toBe('enable');
+    expect(parsed.options.apiOnly).toBe(true);
+    expect(parsed.options.port).toBe(3002);
+  });
+
+  it('parses tunnel auto-start server options', () => {
+    const parsed = parseArgs(['tunnel', 'start', '--port', '3002', '--api-only', '--lan', '--ui-password', 'secret']);
+
+    expect(parsed.command).toBe('tunnel');
+    expect(parsed.subcommand).toBe('start');
+    expect(parsed.options.port).toBe(3002);
+    expect(parsed.options.apiOnly).toBe(true);
+    expect(parsed.options.host).toBe('0.0.0.0');
+    expect(parsed.options.uiPassword).toBe('secret');
+  });
+
   it('maps --lan to wildcard bind host', () => {
     const parsed = parseArgs(['serve', '--lan', '--port', '3002']);
 

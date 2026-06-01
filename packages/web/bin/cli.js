@@ -252,6 +252,27 @@ async function resolveConnectUrlServerUrl(options) {
   };
 }
 
+async function ensureConnectUrlServerRunning(options) {
+  const running = await discoverRunningInstances();
+  if (running.some((entry) => entry.port === options.port)) {
+    return { port: options.port, autoStarted: false };
+  }
+
+  await commands.serve({
+    port: options.port,
+    explicitPort: true,
+    host: options.host,
+    uiPassword: options.uiPassword,
+    apiOnly: options.apiOnly,
+    suppressUnsafePortWarning: true,
+    suppressUiPasswordWarning: true,
+    suppressStartupSummary: true,
+    suppressQuietOutput: true,
+  });
+
+  return { port: options.port, autoStarted: true };
+}
+
 function normalizeServerUrlForConnection(value) {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   if (!trimmed) return null;
@@ -716,6 +737,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     envSnapshot: true,
     foreground: false,
     lan: false,
+    apiOnly: false,
   };
 
   const removedFlagErrors = [];
@@ -928,6 +950,9 @@ function parseArgs(argv = process.argv.slice(2)) {
       case 'no-daemon':
         options.foreground = true;
         break;
+      case 'api-only':
+        options.apiOnly = true;
+        break;
       case 'daemon':
       case 'd':
         // Legacy no-op: daemon mode is already the default, but older clients
@@ -1010,6 +1035,7 @@ OPTIONS:
   --lan                   Bind to 0.0.0.0 for LAN access
   --server <url>          Public/server URL for connect-url links
   --ui-password           Protect browser UI with single password
+  --api-only              Start API routes only, without serving browser UI assets
   --foreground            Run server in foreground (use with systemd/process managers)
   --no-daemon             Alias for --foreground
   -h, --help              Show help
@@ -1018,6 +1044,7 @@ OPTIONS:
 ENVIRONMENT:
   OPENCHAMBER_HOST             Bind address (e.g. 0.0.0.0 for all interfaces)
   OPENCHAMBER_UI_PASSWORD      Alternative to --ui-password flag
+  OPENCHAMBER_API_ONLY         Set to true/1 to start API routes only
   OPENCHAMBER_DATA_DIR         Override OpenChamber data directory
   OPENCODE_HOST               External OpenCode server base URL, e.g. http://hostname:4096
   OPENCODE_PORT               Port of external OpenCode server to connect to
@@ -1053,6 +1080,7 @@ OPTIONS:
   -p, --port              Web server port used by startup service
   --host                  Bind address used by startup service
   --ui-password           Protect browser UI with single password
+  --api-only              Start API routes only, without serving browser UI assets
   --no-env-snapshot       Do not save current environment for startup service
   --json                  Output machine-readable JSON
   -q, --quiet             Suppress non-essential output
@@ -1060,7 +1088,41 @@ OPTIONS:
 EXAMPLES:
   openchamber startup enable
   openchamber startup enable --port 3000
+  openchamber startup enable --port 3000 --api-only --host 0.0.0.0
   openchamber startup status --json
+`);
+}
+
+function showConnectUrlHelp() {
+  console.log(`
+ OpenChamber Connect URL
+
+USAGE:
+  openchamber connect-url [OPTIONS]
+
+DESCRIPTION:
+  Generate an openchamber:// connection link for adding this server to another
+  OpenChamber app. If no server is running on the selected port, it starts one.
+
+OPTIONS:
+  -p, --port <port>       Server port to use or start (default: ${DEFAULT_PORT})
+  --host <address>        Bind address when starting the server
+  --hostname <address>    Alias for --host
+  --lan                   Bind to 0.0.0.0 for LAN access when starting
+  --server <url>          Public URL saved into the connection link
+  --server-url <url>      Alias for --server
+  --name <label>          Label saved with the remote client token
+  --ui-password <value>   Protect browser access when UI routes are enabled
+  --api-only              Start in headless/API-only mode when starting
+  --qr                    Print a QR code for the connection link
+  --json                  Output machine-readable JSON
+  -q, --quiet             Print only the connection link
+  -h, --help              Show this help
+
+EXAMPLES:
+  openchamber connect-url --port 3000 --qr
+  openchamber connect-url --port 3000 --api-only --lan --server http://workstation.local:3000 --qr
+  openchamber connect-url --server https://openchamber.example.com --name Workstation
 `);
 }
 
@@ -1083,6 +1145,10 @@ SUBCOMMANDS:
 
 COMMON OPTIONS:
   -p, --port              Target OpenChamber instance port
+  --host                  Bind address when auto-starting an instance
+  --lan                   Bind to 0.0.0.0 when auto-starting an instance
+  --ui-password           Protect browser UI when auto-starting an instance
+  --api-only              Start API routes only when auto-starting an instance
   --json                  Output machine-readable JSON
   --all                   Apply to all running instances (doctor default, stop)
 
@@ -1959,6 +2025,9 @@ function collectStartupEnv(options = {}) {
   if (uiPassword) {
     env.OPENCHAMBER_UI_PASSWORD = uiPassword;
   }
+  if (options.apiOnly === true) {
+    env.OPENCHAMBER_API_ONLY = 'true';
+  }
   if (typeof process.env.OPENCHAMBER_DATA_DIR === 'string' && process.env.OPENCHAMBER_DATA_DIR.trim().length > 0) {
     env.OPENCHAMBER_DATA_DIR = path.resolve(process.env.OPENCHAMBER_DATA_DIR.trim());
   }
@@ -2036,6 +2105,9 @@ function buildStartupArgs(options = {}) {
   const args = [resolveCliEntrypoint(), 'serve', '--foreground', '--port', String(options.port || DEFAULT_PORT)];
   if (typeof options.host === 'string' && options.host.length > 0) {
     args.push('--host', options.host);
+  }
+  if (options.apiOnly === true) {
+    args.push('--api-only');
   }
   return args;
 }
@@ -2280,6 +2352,7 @@ function writeInstanceOptions(instanceFilePath, options, onNotice) {
       launchMode: options.launchMode === 'foreground' ? 'foreground' : 'daemon',
       uiPassword: typeof options.uiPassword === 'string' ? options.uiPassword : undefined,
       hasUiPassword: typeof options.uiPassword === 'string',
+      apiOnly: options.apiOnly === true,
       startedAt: Number.isFinite(options.startedAt) ? options.startedAt : Date.now(),
     };
     fs.writeFileSync(instanceFilePath, JSON.stringify(toStore, null, 2), { mode: 0o600 });
@@ -2804,7 +2877,9 @@ async function resolveTargetInstance({
       await commands.serve({
         port: options.port,
         explicitPort: true,
+        host: options.host,
         uiPassword: options.uiPassword,
+        apiOnly: options.apiOnly,
         suppressUnsafePortWarning: true,
         suppressUiPasswordWarning: true,
         suppressStartupSummary: true,
@@ -3443,6 +3518,7 @@ const commands = {
         port: targetPort,
         host: effectiveHost,
         uiPassword: effectiveUiPassword,
+        apiOnly: options.apiOnly === true,
         attachSignals: false,
         exitOnShutdown: false,
       });
@@ -3459,6 +3535,7 @@ const commands = {
         host: effectiveHost,
         launchMode: 'foreground',
         uiPassword: effectiveUiPassword,
+        apiOnly: options.apiOnly === true,
       }, emitNotice);
 
       if (isQuietMode(options)) {
@@ -3509,6 +3586,9 @@ const commands = {
     if (effectiveHost) {
       serverArgs.push('--host', effectiveHost);
     }
+    if (options.apiOnly === true) {
+      serverArgs.push('--api-only');
+    }
 
     const serveSpin = showOutput ? createSpinner(options) : null;
 
@@ -3522,6 +3602,7 @@ const commands = {
         OPENCODE_BINARY: opencodeBinary,
         ...(effectiveHost ? { OPENCHAMBER_HOST: effectiveHost } : {}),
         ...(effectiveUiPassword ? { OPENCHAMBER_UI_PASSWORD: effectiveUiPassword } : {}),
+        ...(options.apiOnly === true ? { OPENCHAMBER_API_ONLY: 'true' } : {}),
         ...(process.env.OPENCODE_SKIP_START ? { OPENCHAMBER_SKIP_OPENCODE_START: process.env.OPENCODE_SKIP_START } : {}),
       },
     });
@@ -3600,6 +3681,7 @@ const commands = {
       host: effectiveHost,
       launchMode: 'daemon',
       uiPassword: effectiveUiPassword,
+      apiOnly: options.apiOnly === true,
     }, emitNotice);
 
     const serveResult = {
@@ -3642,6 +3724,7 @@ const commands = {
     if (options.server && !explicitServerUrl) {
       throw new TunnelCliError('Invalid --server URL. Use an http:// or https:// URL.', EXIT_CODE.USAGE_ERROR);
     }
+    const serverState = await ensureConnectUrlServerRunning(options);
     const resolvedServerUrl = explicitServerUrl
       ? { serverUrl: explicitServerUrl, source: 'explicit' }
       : await resolveConnectUrlServerUrl(options);
@@ -3657,7 +3740,7 @@ const commands = {
     const connectUrl = buildClientConnectionPayload({ serverUrl, token: result.token, label });
 
     if (isJsonMode(options)) {
-      printJson({ serverUrl, connectUrl, token: result.token, client: result.client });
+      printJson({ serverUrl, connectUrl, token: result.token, client: result.client, autoStarted: serverState.autoStarted });
       return;
     }
 
@@ -3667,6 +3750,9 @@ const commands = {
     }
 
     clackIntro('OpenChamber connect URL');
+    if (serverState.autoStarted) {
+      logStatus('success', `started OpenChamber on port ${options.port}`);
+    }
     logStatus('success', connectUrl);
     clackLog.info(`Server URL: ${serverUrl}`);
     if (resolvedServerUrl.source === 'lan-detected') {
@@ -3676,7 +3762,7 @@ const commands = {
     }
     clackLog.info('Copy this connection link into another OpenChamber client. The token is shown only once.');
     if (options.qr === true) {
-      await printQrCode(connectUrl);
+      await displayTunnelQrCode(connectUrl);
     }
     clackOutro('connect URL generated');
   },
@@ -3944,6 +4030,7 @@ const commands = {
           host: storedOptions.host,
           explicitPort: true,
           uiPassword: options.explicitUiPassword ? options.uiPassword : storedOptions.uiPassword,
+          apiOnly: storedOptions.apiOnly === true,
           suppressStartupSummary: true,
           quiet: true,
           suppressUiPasswordWarning: true,
@@ -5496,6 +5583,8 @@ async function main() {
       showTunnelHelp();
     } else if (command === 'startup') {
       showStartupHelp();
+    } else if (command === 'connect-url') {
+      showConnectUrlHelp();
     } else {
       showHelp();
     }
