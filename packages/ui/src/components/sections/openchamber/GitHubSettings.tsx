@@ -307,12 +307,23 @@ export const GitHubSettings: React.FC = () => {
                     {t('settings.github.page.label.scopes', { value: status.scope })}
                   </div>
                 )}
+                {ghCli?.active && (
+                  <div className="typography-micro text-muted-foreground/70 mt-0.5">
+                    {t('settings.github.page.ghCli.activeDescription')}
+                  </div>
+                )}
               </div>
             </div>
 
-            <Button size="sm" variant="outline" onClick={disconnect} disabled={isBusy} className={cn("text-[var(--status-error)] hover:text-[var(--status-error)]", isMobile ? "w-full" : undefined)}>
-              {t('settings.github.page.actions.disconnect')}
-            </Button>
+            {ghCli?.active ? (
+              <Button size="sm" variant="outline" onClick={() => toggleGhCli(true)} disabled={isBusy} className={cn(isMobile ? "w-full" : undefined)}>
+                {t('settings.github.page.ghCli.actions.disable')}
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={disconnect} disabled={isBusy} className={cn("text-[var(--status-error)] hover:text-[var(--status-error)]", isMobile ? "w-full" : undefined)}>
+                {t('settings.github.page.actions.disconnect')}
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex items-center justify-between gap-4 px-4 py-4">
@@ -386,7 +397,7 @@ export const GitHubSettings: React.FC = () => {
 
       </div>
 
-      {connected && (
+      {connected && !ghCli?.active && (
         <div className="mt-2 px-2 pb-2">
           <Button size="sm"
             variant="outline"
@@ -433,7 +444,7 @@ export const GitHubSettings: React.FC = () => {
         </div>
       )}
 
-      {ghCli?.available && (
+      {ghCli?.available && !ghCli?.active && (
         <div className="mt-6">
           <h3 className="typography-ui-header font-semibold text-foreground mb-3 px-1">
             {t('settings.github.page.ghCli.title')}
