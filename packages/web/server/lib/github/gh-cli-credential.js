@@ -1,10 +1,10 @@
 import { execFileSync } from 'child_process';
 
-/**
- * Returns a GitHub token from the `gh` CLI if it is installed and
- * authenticated, or null otherwise.
- */
-export function getGhCliToken() {
+const CACHE_TTL_MS = 30_000;
+let cachedToken = null;
+let cachedAt = 0;
+
+function fetchGhCliToken() {
   try {
     const token = execFileSync('gh', ['auth', 'token'], {
       encoding: 'utf8',
@@ -15,4 +15,20 @@ export function getGhCliToken() {
   } catch {
     return null;
   }
+}
+
+export function getGhCliToken() {
+  const now = Date.now();
+  if (cachedToken !== null && now - cachedAt < CACHE_TTL_MS) {
+    return cachedToken;
+  }
+  const token = fetchGhCliToken();
+  cachedToken = token;
+  cachedAt = now;
+  return token;
+}
+
+export function clearGhCliTokenCache() {
+  cachedToken = null;
+  cachedAt = 0;
 }

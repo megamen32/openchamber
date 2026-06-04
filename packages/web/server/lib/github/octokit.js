@@ -2,12 +2,9 @@ import { Octokit } from '@octokit/rest';
 import { getGitHubAuth, isGhCliDisabled } from './auth.js';
 import { getGhCliToken } from './gh-cli-credential.js';
 
-export function getOctokitOrNull(cachedGhToken) {
+export function getOctokitOrNull() {
   const auth = getGitHubAuth();
-  const ghToken = cachedGhToken !== undefined
-    ? cachedGhToken
-    : (!isGhCliDisabled() ? getGhCliToken() : null);
-  const token = auth?.accessToken || ghToken;
+  const token = auth?.accessToken || (!isGhCliDisabled() ? getGhCliToken() : null);
   if (!token) {
     return null;
   }

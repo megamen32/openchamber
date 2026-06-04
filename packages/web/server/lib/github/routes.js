@@ -92,7 +92,7 @@ export function registerGitHubRoutes(app) {
         ...(activeUser ? { user: activeUser } : {}),
       });
 
-      const octokit = getOctokitOrNull(ghCliDisabled ? null : ghToken);
+      const octokit = getOctokitOrNull();
       if (!octokit) {
         return res.json({ connected: false, accounts, ghCli: buildGhCli() });
       }
