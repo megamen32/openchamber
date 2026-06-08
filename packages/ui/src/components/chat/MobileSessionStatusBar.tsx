@@ -418,6 +418,7 @@ export const MobileSessionPanelTrigger: React.FC<MobileSessionPanelTriggerProps>
   const isMobile = useUIStore((state) => state.isMobile);
   const open = useUIStore((state) => state.mobileSessionPanelOpen);
   const setOpen = useUIStore((state) => state.setMobileSessionPanelOpen);
+  const handledTouchRef = React.useRef(false);
 
   // Ensure the cross-project session list is loaded once, so the panel reflects
   // every project, not just the active directory.
@@ -443,9 +444,17 @@ export const MobileSessionPanelTrigger: React.FC<MobileSessionPanelTriggerProps>
         if (event.pointerType === 'touch') {
           event.preventDefault();
           event.stopPropagation();
+          handledTouchRef.current = true;
+          setOpen(!open);
         }
       }}
-      onClick={() => setOpen(!open)}
+      onClick={() => {
+        if (handledTouchRef.current) {
+          handledTouchRef.current = false;
+          return;
+        }
+        setOpen(!open);
+      }}
       title={t('mobile.sessions.search.section.sessions')}
       aria-label={t('mobile.sessions.search.section.sessions')}
       aria-expanded={open}
