@@ -4,6 +4,11 @@ import { useUpdateStore } from '@/stores/useUpdateStore';
 
 export function useUpdatePolling() {
   const checkForUpdates = useUpdateStore((state) => state.checkForUpdates);
+  const checkForUpdatesRef = React.useRef(checkForUpdates);
+
+  React.useEffect(() => {
+    checkForUpdatesRef.current = checkForUpdates;
+  }, [checkForUpdates]);
 
   React.useEffect(() => {
     const initialDelayMs = 3000;
@@ -21,7 +26,7 @@ export function useUpdatePolling() {
     const scheduleNext = (delayMs: number) => {
       if (disposed) return;
       timer = window.setTimeout(async () => {
-        const suggestedSec = await checkForUpdates();
+        const suggestedSec = await checkForUpdatesRef.current();
         const nextDelay = typeof suggestedSec === 'number' && Number.isFinite(suggestedSec)
           ? clampIntervalMs(suggestedSec)
           : defaultIntervalMs;
@@ -37,5 +42,5 @@ export function useUpdatePolling() {
         window.clearTimeout(timer);
       }
     };
-  }, [checkForUpdates]);
+  }, []);
 }

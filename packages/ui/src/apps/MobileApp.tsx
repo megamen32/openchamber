@@ -408,28 +408,28 @@ const MobileOverflowMenu: React.FC<{
   );
 };
 
-const MobileHeader: React.FC<{
-  onOpenSessions: () => void;
-  onOpenMenu: () => void;
-}> = ({ onOpenSessions, onOpenMenu }) => {
+const MobileSessionMetadataButton = React.memo(function MobileSessionMetadataButton({
+  open,
+  onOpenChange,
+  currentSessionId,
+  effectiveDirectory,
+  gitDirectory,
+  isNewSessionDraftOpen,
+  primaryLabel,
+  secondaryLabel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean | ((open: boolean) => boolean)) => void;
+  currentSessionId: string | null;
+  effectiveDirectory: string | null;
+  gitDirectory: string | null;
+  isNewSessionDraftOpen: boolean;
+  primaryLabel: string;
+  secondaryLabel: string;
+}) {
   const { t } = useI18n();
   const { git } = useRuntimeAPIs();
-  const [metadataOpen, setMetadataOpen] = React.useState(false);
   const metadataTriggerRef = React.useRef<HTMLButtonElement>(null);
-  const currentDirectory = useDirectoryStore((state) => state.currentDirectory);
-  const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
-  const currentSessionDirectory = useSessionUIStore(
-    React.useCallback((state) => (currentSessionId ? state.getDirectoryForSession(currentSessionId) : null), [currentSessionId]),
-  );
-  const effectiveDirectory = currentSessionDirectory || currentDirectory;
-  const gitDirectory = normalizePath(effectiveDirectory) || null;
-  const projects = useProjectsStore((state) => state.projects);
-  const availableWorktreesByProject = useSessionUIStore((state) => state.availableWorktreesByProject);
-  const currentWorktreeMetadata = useSessionUIStore(
-    React.useCallback((state) => (currentSessionId ? state.worktreeMetadata.get(currentSessionId) ?? null : null), [currentSessionId]),
-  );
-  const currentSession = useSession(currentSessionId, effectiveDirectory || undefined);
-  const isNewSessionDraftOpen = useSessionUIStore((state) => Boolean(state.newSessionDraft?.open));
   const activeSessionMessages = useSessionMessages(currentSessionId ?? '', effectiveDirectory || undefined);
   const isGitRepo = useIsGitRepo(gitDirectory);
   const gitStatus = useGitStatus(gitDirectory);
@@ -457,20 +457,6 @@ const MobileHeader: React.FC<{
 
   useQuotaAutoRefresh();
 
-  const projectLabel = React.useMemo(() => {
-    const directory = normalizePath(effectiveDirectory);
-    if (!directory) return t('mobile.header.noProject');
-    const metadataProject = currentWorktreeMetadata?.projectDirectory
-      ? resolveProjectForDirectory(projects, currentWorktreeMetadata.projectDirectory)
-      : null;
-    const project = metadataProject ?? resolveProjectForSessionDirectory(projects, availableWorktreesByProject, directory);
-    return getProjectDisplayLabel(project, directory) || t('mobile.header.noProject');
-  }, [availableWorktreesByProject, currentWorktreeMetadata?.projectDirectory, effectiveDirectory, projects, t]);
-
-  const sessionTitle = currentSession?.title?.trim();
-  const primaryLabel = sessionTitle || (currentSessionId ? t('mobile.sessions.untitled') : projectLabel);
-  const secondaryLabel = currentSessionId ? projectLabel : '';
-
   React.useEffect(() => {
     if (!gitDirectory) return;
     void ensureStatus(gitDirectory, git);
@@ -485,10 +471,6 @@ const MobileHeader: React.FC<{
   }, [fetchStatus, git, gitDirectory]);
 
   React.useEffect(() => {
-    setMetadataOpen(false);
-  }, [currentSessionId, effectiveDirectory]);
-
-  React.useEffect(() => {
     void loadQuotaSettings();
   }, [loadQuotaSettings]);
 
@@ -497,13 +479,13 @@ const MobileHeader: React.FC<{
   }, [dropdownProviderIds]);
 
   React.useEffect(() => {
-    if (!metadataOpen || isQuotaLoading) return;
+    if (!open || isQuotaLoading) return;
     const missingEnabledProvider = dropdownProviderIds.some((providerId) => (
       !quotaResults.some((result) => result.providerId === providerId)
     ));
     if (!missingEnabledProvider) return;
     void fetchAllQuotas();
-  }, [dropdownProviderIds, fetchAllQuotas, isQuotaLoading, metadataOpen, quotaResults]);
+  }, [dropdownProviderIds, fetchAllQuotas, isQuotaLoading, open, quotaResults]);
 
   const latestMessageModel = React.useMemo(() => {
     for (let i = activeSessionMessages.length - 1; i >= 0; i -= 1) {
@@ -625,9 +607,81 @@ const MobileHeader: React.FC<{
   }, [dropdownProviderIds, quotaResults, selectedQuotaModels, t]);
 
   React.useEffect(() => {
-    if (!metadataOpen || usageGroups.length === 0) return;
+    if (!open || usageGroups.length === 0) return;
     preloadProviderLogos(usageGroups.map((group) => group.providerId));
-  }, [metadataOpen, usageGroups]);
+  }, [open, usageGroups]);
+
+  return (
+    <>
+      <button
+        ref={metadataTriggerRef}
+        type="button"
+        className="flex min-w-0 flex-1 items-center rounded-full px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-label={t('mobile.header.openMetadataAria')}
+        aria-expanded={open}
+        onClick={() => onOpenChange((currentOpen) => !currentOpen)}
+        style={{ touchAction: 'manipulation' }}
+      >
+        <span className="flex min-w-0 flex-1 flex-col leading-tight">
+          <span className="block truncate typography-ui-label text-foreground">{primaryLabel}</span>
+          {secondaryLabel ? (
+            <span className="block truncate typography-micro text-muted-foreground">{secondaryLabel}</span>
+          ) : null}
+        </span>
+      </button>
+      <SessionMetadataOverlay
+        open={open}
+        onClose={() => onOpenChange(false)}
+        anchorRef={metadataTriggerRef}
+        contextDisplay={contextDisplay}
+        branchLabel={branchLabel}
+        usageGroups={usageGroups}
+        usageDisplayMode={quotaDisplayMode}
+        isUsageLoading={isQuotaLoading}
+        timeFormatPreference={timeFormatPreference}
+      />
+    </>
+  );
+});
+
+const MobileHeader: React.FC<{
+  onOpenSessions: () => void;
+  onOpenMenu: () => void;
+}> = ({ onOpenSessions, onOpenMenu }) => {
+  const { t } = useI18n();
+  const [metadataOpen, setMetadataOpen] = React.useState(false);
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory);
+  const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
+  const currentSessionDirectory = useSessionUIStore(
+    React.useCallback((state) => (currentSessionId ? state.getDirectoryForSession(currentSessionId) : null), [currentSessionId]),
+  );
+  const effectiveDirectory = currentSessionDirectory || currentDirectory;
+  const gitDirectory = normalizePath(effectiveDirectory) || null;
+  const projects = useProjectsStore((state) => state.projects);
+  const availableWorktreesByProject = useSessionUIStore((state) => state.availableWorktreesByProject);
+  const currentWorktreeMetadata = useSessionUIStore(
+    React.useCallback((state) => (currentSessionId ? state.worktreeMetadata.get(currentSessionId) ?? null : null), [currentSessionId]),
+  );
+  const currentSession = useSession(currentSessionId, effectiveDirectory || undefined);
+  const isNewSessionDraftOpen = useSessionUIStore((state) => Boolean(state.newSessionDraft?.open));
+
+  const projectLabel = React.useMemo(() => {
+    const directory = normalizePath(effectiveDirectory);
+    if (!directory) return t('mobile.header.noProject');
+    const metadataProject = currentWorktreeMetadata?.projectDirectory
+      ? resolveProjectForDirectory(projects, currentWorktreeMetadata.projectDirectory)
+      : null;
+    const project = metadataProject ?? resolveProjectForSessionDirectory(projects, availableWorktreesByProject, directory);
+    return getProjectDisplayLabel(project, directory) || t('mobile.header.noProject');
+  }, [availableWorktreesByProject, currentWorktreeMetadata?.projectDirectory, effectiveDirectory, projects, t]);
+
+  const sessionTitle = currentSession?.title?.trim();
+  const primaryLabel = sessionTitle || (currentSessionId ? t('mobile.sessions.untitled') : projectLabel);
+  const secondaryLabel = currentSessionId ? projectLabel : '';
+
+  React.useEffect(() => {
+    setMetadataOpen(false);
+  }, [currentSessionId, effectiveDirectory]);
 
   const handleOpenSessions = React.useCallback(() => {
     setMetadataOpen(false);
@@ -656,22 +710,16 @@ const MobileHeader: React.FC<{
             <Icon name="menu" className="size-5" />
           </button>
 
-          <button
-            ref={metadataTriggerRef}
-            type="button"
-            className="flex min-w-0 flex-1 items-center rounded-full px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            aria-label={t('mobile.header.openMetadataAria')}
-            aria-expanded={metadataOpen}
-            onClick={() => setMetadataOpen((open) => !open)}
-            style={{ touchAction: 'manipulation' }}
-          >
-            <span className="flex min-w-0 flex-1 flex-col leading-tight">
-              <span className="block truncate typography-ui-label text-foreground">{primaryLabel}</span>
-              {secondaryLabel ? (
-                <span className="block truncate typography-micro text-muted-foreground">{secondaryLabel}</span>
-              ) : null}
-            </span>
-          </button>
+          <MobileSessionMetadataButton
+            open={metadataOpen}
+            onOpenChange={setMetadataOpen}
+            currentSessionId={currentSessionId}
+            effectiveDirectory={effectiveDirectory}
+            gitDirectory={gitDirectory}
+            isNewSessionDraftOpen={isNewSessionDraftOpen}
+            primaryLabel={primaryLabel}
+            secondaryLabel={secondaryLabel}
+          />
 
           <button
             type="button"
@@ -684,17 +732,6 @@ const MobileHeader: React.FC<{
           </button>
         </div>
       </header>
-      <SessionMetadataOverlay
-        open={metadataOpen}
-        onClose={() => setMetadataOpen(false)}
-        anchorRef={metadataTriggerRef}
-        contextDisplay={contextDisplay}
-        branchLabel={branchLabel}
-        usageGroups={usageGroups}
-        usageDisplayMode={quotaDisplayMode}
-        isUsageLoading={isQuotaLoading}
-        timeFormatPreference={timeFormatPreference}
-      />
     </>
   );
 };
