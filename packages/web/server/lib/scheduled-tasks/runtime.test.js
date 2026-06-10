@@ -108,7 +108,7 @@ describe('expandScheduledTaskPlaceholders', () => {
       scheduledTimeMs,
       'UTC',
     );
-    expect(result).toBe('Review changes since 2025-06-15 09:30 UTC');
+    expect(result).toBe('Review changes since 2025-06-15T09:30:00.000Z');
   });
 
   it('replaces {{scheduled_time:yyyy-LL-dd}} with date only', () => {
@@ -179,6 +179,6 @@ describe('expandScheduledTaskPlaceholders', () => {
       scheduledTimeMs,
       'UTC',
     );
-    expect(result).toBe('2025-06-15 09:30 UTC');
+    expect(result).toBe('2025-06-15T09:30:00.000Z');
   });
 });

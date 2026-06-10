@@ -17,7 +17,7 @@ export const expandScheduledTaskPlaceholders = (text, scheduledTimeMs, zone) => 
     if (typeof formatToken === 'string' && formatToken.trim().length > 0) {
       return dt.toFormat(formatToken.trim());
     }
-    return dt.toFormat('yyyy-LL-dd HH:mm ZZZZ');
+    return dt.toISO();
   });
 };
 

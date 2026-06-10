@@ -31,13 +31,13 @@ The prompt is expanded in two stages before being sent to OpenCode:
 
 ### Syntax
 
-`{{scheduled_time}}` — default format: `yyyy-LL-dd HH:mm ZZZZ` (e.g. `2025-06-15 09:30 UTC`).
+`{{scheduled_time}}` — default format: ISO 8601 (e.g. `2025-06-15T09:30:00.000Z`).
 
 `{{scheduled_time:<format>}}` — custom format using [Luxon format tokens](https://moment.github.io/luxon/#/formatting?id=table-of-tokens). Examples:
 
 | Placeholder | Resolves to |
 |---|---|
-| `{{scheduled_time}}` | `2025-06-15 09:30 UTC` |
+| `{{scheduled_time}}` | `2025-06-15T09:30:00.000Z` |
 | `{{scheduled_time:yyyy-LL-dd}}` | `2025-06-15` |
 | `{{scheduled_time:HH:mm}}` | `09:30` |
 | `{{scheduled_time:yyyy-LL-dd'T'HH:mm:ssZZZ}}` | `2025-06-15T09:30:00+00:00` |
