@@ -1430,6 +1430,9 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
     if (options?.optional) {
       params.set('optional', 'true');
     }
+    if (root) {
+      params.set('directory', root);
+    }
     const response = await runtimeFetch(`/api/fs/read?${params.toString()}`, {
       // Avoid conditional requests (304 + empty body).
       cache: options?.optional ? 'no-store' : 'default',
@@ -1439,7 +1442,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
       throw new Error((error as { error?: string }).error || t('filesView.error.readFileFailed'));
     }
     return response.text();
-  }, [files, t]);
+  }, [files, root, t]);
 
   const readFileStat = React.useCallback(async (path: string, options?: { allowOutsideWorkspace?: boolean }): Promise<FileStatSnapshot | null> => {
     if (files.statFile) {
@@ -2804,6 +2807,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
         : imageAssetAuthReadyKey === imageAssetAuthKey ? getRuntimeUrlResolver().authenticatedAsset('/api/fs/raw', {
           path: selectedFile.path,
           allowOutsideWorkspace: selectedFileReadOptions.allowOutsideWorkspace ? 'true' : undefined,
+          directory: root || undefined,
         }) : ''))
     : '';
 
@@ -2823,6 +2827,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full' }) => {
         : Promise.resolve(getRuntimeUrlResolver().authenticatedAsset('/api/fs/raw', {
           path: selectedFile.path,
           allowOutsideWorkspace: selectedFileReadOptions.allowOutsideWorkspace ? 'true' : undefined,
+          directory: root || undefined,
         }));
 
       await srcPromise
