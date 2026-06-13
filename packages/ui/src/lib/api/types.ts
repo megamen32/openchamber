@@ -586,28 +586,33 @@ export interface CommandExecResult {
   error?: string;
 }
 
-export interface ListDirectoryOptions {
+export interface FileWorkspaceOptions {
+  directory?: string;
+}
+
+export interface ListDirectoryOptions extends FileWorkspaceOptions {
   respectGitignore?: boolean;
 }
 
-export interface FileReadOptions {
+export interface FileReadOptions extends FileWorkspaceOptions {
   allowOutsideWorkspace?: boolean;
+  outsideFileGrant?: string;
   optional?: boolean;
 }
 
 export interface FilesAPI {
   listDirectory(path: string, options?: ListDirectoryOptions): Promise<DirectoryListResult>;
   search(payload: FileSearchQuery): Promise<FileSearchResult[]>;
-  createDirectory(path: string): Promise<{ success: boolean; path: string }>;
+  createDirectory(path: string, options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }>;
   statFile?(path: string, options?: FileReadOptions): Promise<{ path: string; isFile: boolean; size: number; mtimeMs?: number }>;
   readFile?(path: string, options?: FileReadOptions): Promise<{ content: string; path: string }>;
   readFileBinary?(path: string, options?: FileReadOptions): Promise<{ dataUrl: string; path: string }>;
-  writeFile?(path: string, content: string): Promise<{ success: boolean; path: string }>;
-  delete?(path: string): Promise<{ success: boolean }>;
-  rename?(oldPath: string, newPath: string): Promise<{ success: boolean; path: string }>;
-  revealPath?(path: string): Promise<{ success: boolean }>;
+  writeFile?(path: string, content: string, options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }>;
+  delete?(path: string, options?: FileWorkspaceOptions): Promise<{ success: boolean }>;
+  rename?(oldPath: string, newPath: string, options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }>;
+  revealPath?(path: string, options?: FileWorkspaceOptions): Promise<{ success: boolean }>;
   execCommands?(commands: string[], cwd: string): Promise<{ success: boolean; results: CommandExecResult[] }>;
-  downloadFile?(path: string): Promise<void>;
+  downloadFile?(path: string, options?: FileReadOptions): Promise<void>;
 }
 
 export interface ProjectEntry {
@@ -638,7 +643,6 @@ export interface SettingsPayload {
   opencodeBinary?: string;
   projects?: ProjectEntry[];
   activeProjectId?: string;
-  approvedDirectories?: string[];
   securityScopedBookmarks?: string[];
   pinnedDirectories?: string[];
   showReasoningTraces?: boolean;
@@ -1039,6 +1043,12 @@ export type GitHubAuthStatus = {
   user?: GitHubUserSummary | null;
   scope?: string;
   accounts?: GitHubAuthAccount[];
+  ghCli?: {
+    available: boolean;
+    disabled: boolean;
+    active: boolean;
+    user?: GitHubUserSummary | null;
+  } | null;
 };
 
 export type GitHubAuthAccount = {
@@ -1046,6 +1056,7 @@ export type GitHubAuthAccount = {
   user: GitHubUserSummary;
   scope?: string;
   current?: boolean;
+  source?: 'oauth' | 'gh-cli';
 };
 
 export type GitHubDeviceFlowStart = {
@@ -1068,6 +1079,7 @@ export interface GitHubAPI {
   authComplete(deviceCode: string): Promise<GitHubDeviceFlowComplete>;
   authDisconnect(): Promise<{ removed: boolean }>;
   authActivate(accountId: string): Promise<GitHubAuthStatus>;
+  authSetGhCliDisabled(disabled: boolean): Promise<{ disabled: boolean }>;
   me?(): Promise<GitHubUserSummary>;
 
   prStatus(directory: string, branch: string, remote?: string, options?: { force?: boolean }): Promise<GitHubPullRequestStatus>;

@@ -100,43 +100,43 @@ function withContentCache(files: FilesAPI): FilesAPI {
         if (hit) {
           // Validate cached entry is still fresh
           if (files.statFile) {
-            const latest = await files.statFile(path).catch(() => {
+            const latest = await files.statFile(path, options).catch(() => {
               removeCacheEntry(path);
               return null;
             });
             if (!latest || !statMatches(hit, latest)) {
               removeCacheEntry(path);
-              return readFreshFile(path);
+              return readFreshFile(path, options);
             }
           }
           touchContentLru(path);
           return { content: hit.content, path: hit.path };
         }
 
-        return readFreshFile(path);
+        return readFreshFile(path, options);
       }
     : undefined;
 
   // Invalidate cache on writes, deletes, renames
   const cachedWriteFile: FilesAPI['writeFile'] = files.writeFile
-    ? async (path, content) => {
+    ? async (path, content, options) => {
         removeCacheEntry(path);
-        return files.writeFile!(path, content);
+        return files.writeFile!(path, content, options);
       }
     : undefined;
 
   const cachedDelete: FilesAPI['delete'] = files.delete
-    ? async (path) => {
+    ? async (path, options) => {
         removeCacheEntriesByPrefix(path);
-        return files.delete!(path);
+        return files.delete!(path, options);
       }
     : undefined;
 
   const cachedRename: FilesAPI['rename'] = files.rename
-    ? async (oldPath, newPath) => {
+    ? async (oldPath, newPath, options) => {
         removeCacheEntriesByPrefix(oldPath);
         removeCacheEntriesByPrefix(newPath);
-        return files.rename!(oldPath, newPath);
+        return files.rename!(oldPath, newPath, options);
       }
     : undefined;
 

@@ -77,11 +77,11 @@ const formatFileSize = (size?: number): string => {
   return '';
 };
 
-const getImageSrc = (path: string): string => {
+const getImageSrc = (path: string, directory: string): string => {
   if (path.toLowerCase().endsWith('.svg')) {
     return '';
   }
-  return getRuntimeUrlResolver().authenticatedAsset('/api/fs/raw', { path });
+  return getRuntimeUrlResolver().authenticatedAsset('/api/fs/raw', { path, directory: directory || undefined });
 };
 
 const isMarkdownFile = (path: string): boolean => /\.(md|mdx|markdown)$/i.test(path);
@@ -96,6 +96,7 @@ export const MobileFilesSurface: React.FC<MobileFilesSurfaceProps> = ({ onClose 
   const { t } = useI18n();
   const { files } = useRuntimeAPIs();
   const root = normalizePath(useEffectiveDirectory() ?? null);
+  const fileWorkspaceOptions = React.useMemo(() => ({ directory: root || undefined }), [root]);
   const [route, setRoute] = React.useState<MobileFilesRoute>(() => ({ type: 'browser', directory: root }));
   const [entries, setEntries] = React.useState<FileListEntry[]>([]);
   const [isLoadingDirectory, setIsLoadingDirectory] = React.useState(false);
@@ -125,7 +126,7 @@ export const MobileFilesSurface: React.FC<MobileFilesSurfaceProps> = ({ onClose 
     setIsLoadingDirectory(true);
     setDirectoryError(null);
     try {
-      const result = await files.listDirectory(directory);
+      const result = await files.listDirectory(directory, fileWorkspaceOptions);
       if (directoryLoadRequestIdRef.current !== requestId) return;
       setEntries(result.entries.slice().sort((a, b) => {
         if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
@@ -140,7 +141,7 @@ export const MobileFilesSurface: React.FC<MobileFilesSurfaceProps> = ({ onClose 
         setIsLoadingDirectory(false);
       }
     }
-  }, [files, t]);
+  }, [fileWorkspaceOptions, files, t]);
 
   React.useEffect(() => {
     if (route.type !== 'browser') return;
@@ -195,7 +196,7 @@ export const MobileFilesSurface: React.FC<MobileFilesSurfaceProps> = ({ onClose 
 
     let cancelled = false;
     setIsLoadingFile(true);
-    void files.readFile(route.path)
+    void files.readFile(route.path, { directory: root || undefined })
       .then((result) => {
         if (cancelled) return;
         setFileContent(result.content.length > MAX_MOBILE_FILE_CHARS
@@ -212,7 +213,7 @@ export const MobileFilesSurface: React.FC<MobileFilesSurfaceProps> = ({ onClose 
     return () => {
       cancelled = true;
     };
-  }, [files, route, t]);
+  }, [files, root, route, t]);
 
   const openDirectory = (directory: string) => {
     setQuery('');
@@ -243,6 +244,7 @@ export const MobileFilesSurface: React.FC<MobileFilesSurfaceProps> = ({ onClose 
     return (
       <MobileFileDetail
         path={route.path}
+        directory={root}
         content={fileContent}
         error={fileError}
         isLoading={isLoadingFile}
@@ -392,15 +394,16 @@ const MobileSearchResults: React.FC<{
 
 const MobileFileDetail: React.FC<{
   path: string;
+  directory: string;
   content: string;
   error: string | null;
   isLoading: boolean;
   onBack: () => void;
   onCopyPath: () => void;
   onCopyContent: () => void;
-}> = ({ path, content, error, isLoading, onBack, onCopyPath, onCopyContent }) => {
+}> = ({ path, directory, content, error, isLoading, onBack, onCopyPath, onCopyContent }) => {
   const { t } = useI18n();
-  const imageAuthKey = isImageFile(path) && !path.toLowerCase().endsWith('.svg') ? path : '';
+  const imageAuthKey = isImageFile(path) && !path.toLowerCase().endsWith('.svg') ? `${path}|${directory}` : '';
   const [imageAuthReadyKey, setImageAuthReadyKey] = React.useState('');
 
   React.useEffect(() => {
@@ -423,7 +426,7 @@ const MobileFileDetail: React.FC<{
   }, [imageAuthKey]);
 
   const imageAuthLoading = Boolean(imageAuthKey && imageAuthReadyKey !== imageAuthKey);
-  const imageSrc = imageAuthLoading ? '' : getImageSrc(path);
+  const imageSrc = imageAuthLoading ? '' : getImageSrc(path, directory);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">

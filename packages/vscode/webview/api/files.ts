@@ -1,9 +1,12 @@
 import type {
   CommandExecResult,
   DirectoryListResult,
+  FileReadOptions,
   FileSearchQuery,
   FileSearchResult,
+  FileWorkspaceOptions,
   FilesAPI,
+  ListDirectoryOptions,
 } from '@openchamber/ui/lib/api/types';
 
 import { sendBridgeMessage, sendBridgeMessageWithOptions } from './bridge';
@@ -11,7 +14,7 @@ import { sendBridgeMessage, sendBridgeMessageWithOptions } from './bridge';
 const normalizePath = (value: string): string => value.replace(/\\/g, '/');
 
 export const createVSCodeFilesAPI = (): FilesAPI => ({
-  async listDirectory(path: string, options?: { respectGitignore?: boolean }): Promise<DirectoryListResult> {
+  async listDirectory(path: string, options?: ListDirectoryOptions): Promise<DirectoryListResult> {
     const target = normalizePath(path);
     const data = await sendBridgeMessage<{
       directory?: string;
@@ -62,18 +65,23 @@ export const createVSCodeFilesAPI = (): FilesAPI => ({
     });
   },
 
-  async createDirectory(path: string): Promise<{ success: boolean; path: string }> {
+  async createDirectory(path: string, _options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }> {
     const target = normalizePath(path);
-    const data = await sendBridgeMessage<{ success: boolean; path: string }>('api:fs:mkdir', { path: target });
+    const data = await sendBridgeMessage<{ success: boolean; path: string }>('api:fs:mkdir', { path: target, directory: _options?.directory });
     return {
       success: Boolean(data?.success),
       path: typeof data?.path === 'string' ? normalizePath(data.path) : target,
     };
   },
 
-  async statFile(path: string): Promise<{ path: string; isFile: boolean; size: number; mtimeMs?: number }> {
+  async statFile(path: string, _options?: FileReadOptions): Promise<{ path: string; isFile: boolean; size: number; mtimeMs?: number }> {
     const target = normalizePath(path);
-    const data = await sendBridgeMessage<{ path?: string; isFile?: boolean; size?: number; mtimeMs?: number }>('api:fs:stat', { path: target });
+    const data = await sendBridgeMessage<{ path?: string; isFile?: boolean; size?: number; mtimeMs?: number }>('api:fs:stat', {
+      path: target,
+      directory: _options?.directory,
+      allowOutsideWorkspace: _options?.allowOutsideWorkspace,
+      outsideFileGrant: _options?.outsideFileGrant,
+    });
     return {
       path: typeof data?.path === 'string' ? normalizePath(data.path) : target,
       isFile: Boolean(data?.isFile),
@@ -82,41 +90,47 @@ export const createVSCodeFilesAPI = (): FilesAPI => ({
     };
   },
 
-  async delete(path: string): Promise<{ success: boolean }> {
+  async delete(path: string, _options?: FileWorkspaceOptions): Promise<{ success: boolean }> {
     const target = normalizePath(path);
-    const data = await sendBridgeMessage<{ success: boolean }>('api:fs:delete', { path: target });
+    const data = await sendBridgeMessage<{ success: boolean }>('api:fs:delete', { path: target, directory: _options?.directory });
     return { success: Boolean(data?.success) };
   },
 
-  async rename(oldPath: string, newPath: string): Promise<{ success: boolean; path: string }> {
-    const data = await sendBridgeMessage<{ success: boolean; path: string }>('api:fs:rename', { oldPath, newPath });
+  async rename(oldPath: string, newPath: string, _options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }> {
+    const data = await sendBridgeMessage<{ success: boolean; path: string }>('api:fs:rename', { oldPath, newPath, directory: _options?.directory });
     return {
       success: Boolean(data?.success),
       path: typeof data?.path === 'string' ? normalizePath(data.path) : newPath,
     };
   },
 
-  async readFile(path: string): Promise<{ content: string; path: string }> {
+  async readFile(path: string, _options?: FileReadOptions): Promise<{ content: string; path: string }> {
     const target = normalizePath(path);
-    const data = await sendBridgeMessage<{ content: string; path: string }>('api:fs:read', { path: target });
+    const data = await sendBridgeMessage<{ content: string; path: string }>('api:fs:read', {
+      path: target,
+      directory: _options?.directory,
+      allowOutsideWorkspace: _options?.allowOutsideWorkspace,
+      outsideFileGrant: _options?.outsideFileGrant,
+      optional: _options?.optional,
+    });
     return {
       content: typeof data?.content === 'string' ? data.content : '',
       path: typeof data?.path === 'string' ? normalizePath(data.path) : target,
     };
   },
 
-  async writeFile(path: string, content: string): Promise<{ success: boolean; path: string }> {
+  async writeFile(path: string, content: string, _options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }> {
     const target = normalizePath(path);
-    const data = await sendBridgeMessage<{ success: boolean; path: string }>('api:fs:write', { path: target, content });
+    const data = await sendBridgeMessage<{ success: boolean; path: string }>('api:fs:write', { path: target, content, directory: _options?.directory });
     return {
       success: Boolean(data?.success),
       path: typeof data?.path === 'string' ? normalizePath(data.path) : target,
     };
   },
 
-  async revealPath(path: string): Promise<{ success: boolean }> {
+  async revealPath(path: string, _options?: FileWorkspaceOptions): Promise<{ success: boolean }> {
     const target = normalizePath(path);
-    const data = await sendBridgeMessage<{ success?: boolean }>('api:fs:reveal', { path: target });
+    const data = await sendBridgeMessage<{ success?: boolean }>('api:fs:reveal', { path: target, directory: _options?.directory });
     return { success: Boolean(data?.success) };
   },
 
@@ -133,9 +147,13 @@ export const createVSCodeFilesAPI = (): FilesAPI => ({
     };
   },
 
-  async downloadFile(path: string): Promise<void> {
+  async downloadFile(path: string, _options?: FileReadOptions): Promise<void> {
     const target = normalizePath(path);
-    const url = `/api/fs/raw?path=${encodeURIComponent(target)}&download=true`;
+    const params = new URLSearchParams({ path: target, download: 'true' });
+    if (_options?.allowOutsideWorkspace) params.set('allowOutsideWorkspace', 'true');
+    if (_options?.outsideFileGrant) params.set('outsideFileGrant', _options.outsideFileGrant);
+    if (_options?.directory) params.set('directory', _options.directory);
+    const url = `/api/fs/raw?${params.toString()}`;
     const a = document.createElement('a');
     a.href = url;
     a.download = target.split('/').pop() || 'file';

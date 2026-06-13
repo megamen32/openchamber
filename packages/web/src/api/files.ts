@@ -1,8 +1,11 @@
 import type {
   DirectoryListResult,
+  FileReadOptions,
   FileSearchQuery,
   FileSearchResult,
+  FileWorkspaceOptions,
   FilesAPI,
+  ListDirectoryOptions,
 } from '@openchamber/ui/lib/api/types';
 import { runtimeFetch } from '@openchamber/ui/lib/runtime-fetch';
 import type { RuntimeUrlResolver } from '@openchamber/ui/lib/runtime-url';
@@ -11,7 +14,6 @@ const normalizePath = (path: string): string => path.replace(/\\/g, '/');
 
 interface WebFilesAPIOptions {
   urls: RuntimeUrlResolver;
-  getDirectory?: () => string | undefined;
 }
 
 type WebDirectoryEntry = {
@@ -46,13 +48,17 @@ const toDirectoryListResult = (fallbackDirectory: string, payload: WebDirectoryL
   };
 };
 
-const directoryHeaders = (getDirectory?: () => string | undefined): Record<string, string> | undefined => {
-  const directory = getDirectory?.();
-  return directory ? { 'x-opencode-directory': directory } : undefined;
+const directoryHeaders = (directory?: string | null): Record<string, string> | undefined => {
+  const normalized = typeof directory === 'string' ? normalizePath(directory).trim() : '';
+  return normalized ? { 'x-opencode-directory': normalized } : undefined;
 };
 
-export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): FilesAPI => ({
-  async listDirectory(path: string, options): Promise<DirectoryListResult> {
+const workspaceDirectory = (options?: FileWorkspaceOptions | null): string | undefined => {
+  return options?.directory;
+};
+
+export const createWebFilesAPI = ({ urls }: WebFilesAPIOptions): FilesAPI => ({
+  async listDirectory(path: string, options?: ListDirectoryOptions): Promise<DirectoryListResult> {
     const target = normalizePath(path);
     const params = new URLSearchParams();
     if (target) {
@@ -63,7 +69,7 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     }
 
     const response = await runtimeFetch(urls.api('/api/fs/list', params), {
-      headers: directoryHeaders(getDirectory),
+      headers: directoryHeaders(workspaceDirectory(options)),
     });
 
     if (!response.ok) {
@@ -92,7 +98,7 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     }
 
     const response = await runtimeFetch(urls.api('/api/find/file', params), {
-      headers: directoryHeaders(getDirectory),
+      headers: directoryHeaders(directory),
     });
 
     if (!response.ok) {
@@ -109,11 +115,11 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     }));
   },
 
-  async createDirectory(path: string): Promise<{ success: boolean; path: string }> {
+  async createDirectory(path: string, options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }> {
     const target = normalizePath(path);
     const response = await runtimeFetch(urls.api('/api/fs/mkdir'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...directoryHeaders(getDirectory) },
+      headers: { 'Content-Type': 'application/json', ...directoryHeaders(workspaceDirectory(options)) },
       body: JSON.stringify({ path: target }),
     });
 
@@ -135,8 +141,11 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     if (options?.allowOutsideWorkspace) {
       params.set('allowOutsideWorkspace', 'true');
     }
+    if (options?.outsideFileGrant) {
+      params.set('outsideFileGrant', options.outsideFileGrant);
+    }
     const response = await runtimeFetch(urls.api('/api/fs/stat', params), {
-      headers: directoryHeaders(getDirectory),
+      headers: directoryHeaders(workspaceDirectory(options)),
     });
 
     if (!response.ok) {
@@ -159,12 +168,15 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     if (options?.allowOutsideWorkspace) {
       params.set('allowOutsideWorkspace', 'true');
     }
+    if (options?.outsideFileGrant) {
+      params.set('outsideFileGrant', options.outsideFileGrant);
+    }
     if (options?.optional) {
       params.set('optional', 'true');
     }
     const response = await runtimeFetch(urls.api('/api/fs/read', params), {
       cache: options?.optional ? 'no-store' : 'default',
-      headers: directoryHeaders(getDirectory),
+      headers: directoryHeaders(workspaceDirectory(options)),
     });
 
     if (!response.ok) {
@@ -176,11 +188,11 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     return { content, path: target };
   },
 
-  async writeFile(path: string, content: string): Promise<{ success: boolean; path: string }> {
+  async writeFile(path: string, content: string, options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }> {
     const target = normalizePath(path);
     const response = await runtimeFetch(urls.api('/api/fs/write'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...directoryHeaders(getDirectory) },
+      headers: { 'Content-Type': 'application/json', ...directoryHeaders(workspaceDirectory(options)) },
       body: JSON.stringify({ path: target, content }),
     });
 
@@ -196,11 +208,11 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     };
   },
 
-  async delete(path: string): Promise<{ success: boolean }> {
+  async delete(path: string, options?: FileWorkspaceOptions): Promise<{ success: boolean }> {
     const target = normalizePath(path);
     const response = await runtimeFetch(urls.api('/api/fs/delete'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...directoryHeaders(getDirectory) },
+      headers: { 'Content-Type': 'application/json', ...directoryHeaders(workspaceDirectory(options)) },
       body: JSON.stringify({ path: target }),
     });
 
@@ -213,10 +225,10 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     return { success: Boolean((result as { success?: boolean }).success) };
   },
 
-  async rename(oldPath: string, newPath: string): Promise<{ success: boolean; path: string }> {
+  async rename(oldPath: string, newPath: string, options?: FileWorkspaceOptions): Promise<{ success: boolean; path: string }> {
     const response = await runtimeFetch(urls.api('/api/fs/rename'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...directoryHeaders(getDirectory) },
+      headers: { 'Content-Type': 'application/json', ...directoryHeaders(workspaceDirectory(options)) },
       body: JSON.stringify({ oldPath, newPath }),
     });
 
@@ -232,10 +244,10 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     };
   },
 
-  async revealPath(targetPath: string): Promise<{ success: boolean }> {
+  async revealPath(targetPath: string, options?: FileWorkspaceOptions): Promise<{ success: boolean }> {
     const response = await runtimeFetch(urls.api('/api/fs/reveal'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...directoryHeaders(getDirectory) },
+      headers: { 'Content-Type': 'application/json', ...directoryHeaders(workspaceDirectory(options)) },
       body: JSON.stringify({ path: normalizePath(targetPath) }),
     });
 
@@ -248,14 +260,29 @@ export const createWebFilesAPI = ({ urls, getDirectory }: WebFilesAPIOptions): F
     return { success: Boolean((result as { success?: boolean }).success) };
   },
 
-  async downloadFile(path: string): Promise<void> {
+  async downloadFile(path: string, options?: FileReadOptions): Promise<void> {
     const target = normalizePath(path);
-    const url = urls.rawFile(target, { download: true });
+    const response = await runtimeFetch('/api/fs/raw', {
+      query: {
+        path: target,
+        download: true,
+        allowOutsideWorkspace: options?.allowOutsideWorkspace === true ? true : undefined,
+        outsideFileGrant: options?.outsideFileGrant,
+      },
+      headers: directoryHeaders(workspaceDirectory(options)),
+    });
+    if (!response.ok) {
+      throw new Error(`Download failed (${response.status})`);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = target.split('/').pop() || 'file';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   },
 });
