@@ -59,5 +59,8 @@ The quota plugin context currently includes:
 
 These helpers mirror the built-in quota provider helpers so plugin providers can produce the same API shape without importing internal files directly.
 
+## Provider ID collisions
+If a quota plugin returns a `providerId` that matches a built-in quota provider, the plugin overrides the built-in provider in the local registry. This allows local customization, but it is intentionally silent at runtime, so plugin authors should choose stable, unique provider IDs unless they explicitly want to replace a built-in provider.
+
 ## Trust boundary
 Plugin files are regular JavaScript modules loaded by the local OpenChamber server. Users should only install plugin files they trust. This is intended for local user customization, not for loading untrusted remote code.

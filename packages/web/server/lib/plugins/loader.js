@@ -7,7 +7,13 @@ export async function loadQuotaPlugins() {
   const registry = {};
   if (!fs.existsSync(dir)) return registry;
 
-  const files = fs.readdirSync(dir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
+  let files = [];
+  try {
+    files = fs.readdirSync(dir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
+  } catch (err) {
+    console.warn(`[openchamber:plugins] Failed to read ${dir}:`, err);
+    return registry;
+  }
   if (!files.length) return registry;
 
   const utils = await import('../quota/utils/index.js');
