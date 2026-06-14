@@ -64,3 +64,6 @@ If a quota plugin returns a `providerId` that matches a built-in quota provider,
 
 ## Trust boundary
 Plugin files are regular JavaScript modules loaded by the local OpenChamber server. Users should only install plugin files they trust. This is intended for local user customization, not for loading untrusted remote code.
+
+## Runtime scope
+The plugin loader runs in the web, desktop (Electron), and VS Code extension runtimes. The web and desktop runtimes use the full server-side loader at `packages/web/server/lib/plugins/loader.js`, which executes plugin modules and returns their provider implementations directly. The VS Code extension host cannot run the full loader (different runtime, no express context) but its quota list in `packages/vscode/src/quotaProviders.ts` now scans the same plugin directory via regex on each file's `providerId` / `aliases` literals; a plugin is reported as "configured" if any of its alias keys has an entry in `~/.local/share/opencode/auth.json`. Plugin `fetchQuota` calls still run through the webview bridge, which sees the same auth.json and the same plugin directory.

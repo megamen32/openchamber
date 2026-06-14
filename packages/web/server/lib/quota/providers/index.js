@@ -117,8 +117,17 @@ const registry = {
   }
 };
 
-// Load user quota plugins from ~/.config/openchamber/plugins/quota/
-const pluginProviders = await loadQuotaPlugins();
+// Load user quota plugins from ~/.config/openchamber/plugins/quota/.
+// Wrapped in try/catch so a failure in plugin loading (filesystem errors,
+// malformed plugin modules, internal module resolution problems) can never
+// take down the entire built-in quota registry. Built-in providers keep
+// working; plugins are silently skipped.
+let pluginProviders = {};
+try {
+  pluginProviders = await loadQuotaPlugins();
+} catch (err) {
+  console.warn('[openchamber:quota] Failed to load quota plugins:', err);
+}
 if (Object.keys(pluginProviders).length > 0) {
   Object.assign(registry, pluginProviders);
 }
