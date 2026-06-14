@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { pathToFileURL } from 'node:url';
 
 type AuthEntry = Record<string, unknown> | string;
 type AuthFile = Record<string, AuthEntry>;
@@ -1954,12 +1955,89 @@ export const fetchQuotaForProvider = async (providerId: string): Promise<Provide
     case 'wafer':
       return fetchWaferQuota();
     default:
-      return buildResult({
-        providerId,
-        providerName: providerId,
-        ok: false,
-        configured: false,
-        error: 'Unsupported provider',
+      // Plugin provider: load ~/.config/openchamber/plugins/quota/<id>.js,
+      // execute it with the same context the web/desktop loader passes, and
+      // delegate to its fetchQuota. The plugin's own isConfigured() decides
+      // whether the API key / cookie is present; we surface that result.
+      return fetchPluginProviderQuota(providerId);
+  }
+};
+
+// Load and execute a single quota plugin by providerId. Mirrors the
+// web/desktop server loader but inlines it here so VS Code users do not
+// need a running web server.
+const loadPluginProvider = async (providerId: string) => {
+  if (!fs.existsSync(OPENCHAMBER_PLUGINS_DIR)) return null;
+  let files: string[] = [];
+  try {
+    files = fs.readdirSync(OPENCHAMBER_PLUGINS_DIR).filter((n) => n.endsWith('.js') || n.endsWith('.mjs'));
+  } catch {
+    return null;
+  }
+  for (const file of files) {
+    const text = readTextFile(path.join(OPENCHAMBER_PLUGINS_DIR, file));
+    if (!text) continue;
+    if (extractPluginId(text) !== providerId) continue;
+    try {
+      // Use dynamic import() so the file is evaluated as an ES module.
+      // Plugins are expected to `export default (ctx) => ({...})`.
+      const fileUrl = pathToFileURL(path.join(OPENCHAMBER_PLUGINS_DIR, file)).href;
+      // Bust Node's import cache between calls so plugin authors can edit
+      // a plugin file and reload without restarting the extension host.
+      const mod = await import(`${fileUrl}?t=${Date.now()}`);
+      const factory = (mod && (mod.default || mod)) as (ctx: unknown) => Record<string, unknown>;
+      if (typeof factory !== 'function') return null;
+      const provider = factory({
+        buildResult,
+        toUsageWindow,
+        toNumber,
+        toTimestamp,
+        formatMoney,
+        readAuthFile,
+        getAuthEntry,
+        normalizeAuthEntry,
       });
+      return provider;
+    } catch (err) {
+      console.error(`[openchamber:plugins] Failed to load ${file}:`, err);
+      return null;
+    }
+  }
+  return null;
+};
+
+const fetchPluginProviderQuota = async (providerId: string): Promise<ProviderResult> => {
+  const plugin = await loadPluginProvider(providerId);
+  if (!plugin || typeof (plugin as { fetchQuota?: unknown }).fetchQuota !== 'function') {
+    return buildResult({
+      providerId,
+      providerName: providerId,
+      ok: false,
+      configured: false,
+      error: 'Unsupported provider (no built-in or plugin handler for this id)',
+    });
+  }
+  const isConfigured = typeof (plugin as { isConfigured?: () => boolean }).isConfigured === 'function'
+    ? Boolean((plugin as { isConfigured: () => boolean }).isConfigured())
+    : true;
+  if (!isConfigured) {
+    return buildResult({
+      providerId,
+      providerName: (plugin as { providerName?: string }).providerName || providerId,
+      ok: false,
+      configured: false,
+      error: 'Plugin not configured (missing auth)',
+    });
+  }
+  try {
+    return await (plugin as { fetchQuota: () => Promise<ProviderResult> }).fetchQuota();
+  } catch (err) {
+    return buildResult({
+      providerId,
+      providerName: (plugin as { providerName?: string }).providerName || providerId,
+      ok: false,
+      configured: true,
+      error: err instanceof Error ? err.message : 'Plugin fetch failed',
+    });
   }
 };
