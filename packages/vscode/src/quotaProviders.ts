@@ -124,6 +124,7 @@ const OPENCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'opencode');
 const OPENCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'opencode');
 const AUTH_FILE = path.join(OPENCODE_DATA_DIR, 'auth.json');
 const OLLAMA_CLOUD_COOKIE_PATH = path.join(os.homedir(), '.config', 'ollama-quota', 'cookie');
+const OPENCHAMBER_PLUGINS_DIR = path.join(os.homedir(), '.config', 'openchamber', 'plugins', 'quota');
 
 
 const ANTIGRAVITY_ACCOUNTS_PATHS = [
@@ -453,7 +454,67 @@ export const listConfiguredQuotaProviders = () => {
     configured.add('wafer');
   }
 
+  // Plugin providers from ~/.config/openchamber/plugins/quota/. Each plugin
+  // exports a default function; we don't execute plugin code (different
+  // runtime, no server context) but we read its static `providerId` and
+  // `aliases` via regex on the file text. A plugin is considered
+  // "configured" if any of its alias keys has an auth.json entry. The
+  // plugin file's own `isConfigured` and `fetchQuota` still run inside the
+  // webview bridge, which has access to the same `~/.config/opencode/auth.json`
+  // and the same plugin loader the standalone web/desktop servers use.
+  if (fs.existsSync(OPENCHAMBER_PLUGINS_DIR)) {
+    let pluginFiles: string[] = [];
+    try {
+      pluginFiles = fs.readdirSync(OPENCHAMBER_PLUGINS_DIR).filter((name) => name.endsWith('.js') || name.endsWith('.mjs'));
+    } catch (err) {
+      // Plugin directory unreadable — fall through to no plugins.
+      void err;
+    }
+    for (const file of pluginFiles) {
+      const fullPath = path.join(OPENCHAMBER_PLUGINS_DIR, file);
+      const text = readTextFile(fullPath);
+      if (!text) continue;
+      const providerId = extractPluginId(text);
+      if (!providerId) continue;
+      const aliases = extractPluginAliases(text);
+      const candidateKeys = aliases.length > 0 ? [providerId, ...aliases] : [providerId];
+      const pluginAuth = normalizeAuthEntry(getAuthEntry(auth, candidateKeys));
+      if (pluginAuth && ((pluginAuth as Record<string, unknown>).key || (pluginAuth as Record<string, unknown>).token)) {
+        configured.add(providerId);
+      }
+    }
+  }
+
   return Array.from(configured);
+};
+
+// Extracts the first `providerId: ...` value from a plugin source file.
+// Accepts a string literal (`'foo'`, `"foo"`) or a `const` reference
+// (`PROVIDER_ID`) that is also defined in the same file. Cheap, regex-
+// only; the plugin file is not executed.
+const extractPluginId = (source: string): string | null => {
+  const literal = source.match(/providerId\s*[:=]\s*['"]([^'"]+)['"]/);
+  if (literal) return literal[1];
+  const constRef = source.match(/providerId\s*[:=]\s*([A-Z][A-Z0-9_]*)/);
+  if (!constRef) return null;
+  const name = constRef[1];
+  const def = source.match(new RegExp(`(?:const|let|var)\\s+${name}\\s*=\\s*['"]([^'"]+)['"]`));
+  return def ? def[1] : null;
+};
+
+// Extracts the `aliases: ['a', 'b', ...]` or `aliases: ['a','b']` array
+// literal from a plugin source file. Supports single or double quotes
+// and `const` references.
+const extractPluginAliases = (source: string): string[] => {
+  const match = source.match(/aliases\s*[:=]\s*\[([^\]]*)\]/);
+  if (!match) return [];
+  const items: string[] = [];
+  const re = /['"]([^'"]+)['"]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(match[1])) !== null) {
+    items.push(m[1]);
+  }
+  return items;
 };
 
 export const fetchCodexQuota = async (): Promise<ProviderResult> => {
