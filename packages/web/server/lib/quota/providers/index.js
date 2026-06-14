@@ -22,6 +22,7 @@ import * as minimaxCodingPlan from './minimax-coding-plan.js';
 import * as minimaxCnCodingPlan from './minimax-cn-coding-plan.js';
 import * as ollamaCloud from './ollama-cloud.js';
 import * as wafer from './wafer.js';
+import { loadQuotaPlugins } from '../../plugins/loader.js';
 
 const registry = {
   claude: {
@@ -115,6 +116,12 @@ const registry = {
     fetchQuota: wafer.fetchQuota
   }
 };
+
+// Load user quota plugins from ~/.config/openchamber/plugins/quota/
+const pluginProviders = await loadQuotaPlugins();
+if (Object.keys(pluginProviders).length > 0) {
+  Object.assign(registry, pluginProviders);
+}
 
 export const listConfiguredQuotaProviders = () => {
   const configured = [];
