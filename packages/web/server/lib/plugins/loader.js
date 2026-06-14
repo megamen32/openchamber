@@ -20,8 +20,8 @@ export async function loadQuotaPlugins() {
     toTimestamp: utils.toTimestamp,
     formatMoney: utils.formatMoney,
     readAuthFile: auth.readAuthFile,
-    getAuthEntry: auth.getAuthEntry,
-    normalizeAuthEntry: auth.normalizeAuthEntry,
+    getAuthEntry: utils.getAuthEntry,
+    normalizeAuthEntry: utils.normalizeAuthEntry,
   };
 
   for (const file of files) {
@@ -35,6 +35,8 @@ export async function loadQuotaPlugins() {
           isConfigured: plugin.isConfigured || (() => false),
           fetchQuota: plugin.fetchQuota,
         };
+      } else {
+        console.warn(`[openchamber:plugins] ${file} is missing required fields (providerId, fetchQuota), skipping`);
       }
     } catch (err) {
       console.error(`[openchamber:plugins] Failed to load ${file}:`, err);

@@ -163,7 +163,7 @@ export const useQuotaStore = create<QuotaStore>()(
 
       fetchAllQuotas: async () => {
         set({ isLoading: true, error: null });
-        let providerIds = QUOTA_PROVIDERS.map((provider) => provider.id);
+        const providerIds = QUOTA_PROVIDERS.map((provider) => provider.id);
         try {
           const resp = await runtimeFetch('/api/quota/providers');
           if (resp.ok) {
@@ -174,7 +174,9 @@ export const useQuotaStore = create<QuotaStore>()(
               }
             }
           }
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to fetch dynamic quota providers:', error);
+        }
         try {
           await Promise.all(
             providerIds.map((providerId) => get().fetchProviderQuota(providerId))
