@@ -412,7 +412,6 @@ const MobileOverflowMenu: React.FC<{
 const MobileSessionMetadataButton = React.memo(function MobileSessionMetadataButton({
   open,
   onOpenChange,
-  onOpenSessions,
   currentSessionId,
   effectiveDirectory,
   gitDirectory,
@@ -422,7 +421,6 @@ const MobileSessionMetadataButton = React.memo(function MobileSessionMetadataBut
 }: {
   open: boolean;
   onOpenChange: (open: boolean | ((open: boolean) => boolean)) => void;
-  onOpenSessions: () => void;
   currentSessionId: string | null;
   effectiveDirectory: string | null;
   gitDirectory: string | null;
@@ -432,7 +430,7 @@ const MobileSessionMetadataButton = React.memo(function MobileSessionMetadataBut
 }) {
   const { t } = useI18n();
   const { git } = useRuntimeAPIs();
-  const metadataTriggerRef = React.useRef<HTMLDivElement>(null);
+  const metadataTriggerRef = React.useRef<HTMLButtonElement>(null);
   const activeSessionMessages = useSessionMessages(currentSessionId ?? '', effectiveDirectory || undefined);
   const isGitRepo = useIsGitRepo(gitDirectory);
   const gitStatus = useGitStatus(gitDirectory);
@@ -616,36 +614,22 @@ const MobileSessionMetadataButton = React.memo(function MobileSessionMetadataBut
 
   return (
     <>
-      <div
+      <button
         ref={metadataTriggerRef}
-        className="flex min-w-0 flex-1 items-center gap-1 rounded-full px-1 py-1"
+        type="button"
+        className="flex min-w-0 flex-1 items-center rounded-full px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-label={t('mobile.header.openMetadataAria')}
+        aria-expanded={open}
+        onClick={() => onOpenChange((currentOpen) => !currentOpen)}
+        style={{ touchAction: 'manipulation' }}
       >
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 flex-col rounded-full px-2 py-1 text-left leading-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label={t('mobile.sessions.openSheetAria')}
-          onClick={() => {
-            onOpenChange(false);
-            onOpenSessions();
-          }}
-          style={{ touchAction: 'manipulation' }}
-        >
+        <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="block truncate typography-ui-label text-foreground">{primaryLabel}</span>
           {secondaryLabel ? (
             <span className="block truncate typography-micro text-muted-foreground">{secondaryLabel}</span>
           ) : null}
-        </button>
-        <button
-          type="button"
-          className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label={t('mobile.header.openMetadataAria')}
-          aria-expanded={open}
-          onClick={() => onOpenChange((currentOpen) => !currentOpen)}
-          style={{ touchAction: 'manipulation' }}
-        >
-          <Icon name="information" className="size-4" />
-        </button>
-      </div>
+        </span>
+      </button>
       <SessionMetadataOverlay
         open={open}
         onClose={() => onOpenChange(false)}
@@ -730,7 +714,6 @@ const MobileHeader: React.FC<{
           <MobileSessionMetadataButton
             open={metadataOpen}
             onOpenChange={setMetadataOpen}
-            onOpenSessions={handleOpenSessions}
             currentSessionId={currentSessionId}
             effectiveDirectory={effectiveDirectory}
             gitDirectory={gitDirectory}
