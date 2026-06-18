@@ -26,7 +26,7 @@ import { opencodeClient } from '@/lib/opencode/client';
 import type { ProjectEntry, RuntimeAPIs } from '@/lib/api/types';
 import { useI18n } from '@/lib/i18n';
 import { resolveProjectForDirectory, resolveProjectForSessionDirectory } from '@/lib/projectResolution';
-import { formatQuotaResetLabel, formatQuotaValueLabel, formatWindowLabel, mergeQuotaProviders } from '@/lib/quota';
+import { clampPercent, formatQuotaResetLabel, formatQuotaValueLabel, formatWindowLabel, mergeQuotaProviders, resolveUsageTone } from '@/lib/quota';
 import { getDisplayModelName } from '@/lib/quota/model-families';
 import { runtimeFetch } from '@/lib/runtime-fetch';
 import { sessionEvents } from '@/lib/sessionEvents';
