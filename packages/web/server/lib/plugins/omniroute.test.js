@@ -15,8 +15,8 @@ const ctx = {
   toNumber: (value) => (value == null ? null : Number(value)),
   toTimestamp: (value) => (value == null ? null : new Date(value).getTime()),
   formatMoney: (value) => (value == null ? '-' : Number(value).toFixed(2)),
-  readAuthFile: () => ({}),
-  getAuthEntry: () => null,
+  readAuthFile: () => ({ omniroute: { type: 'api', key: 'sk-test' } }),
+  getAuthEntry: (auth, ids) => ids.map((id) => auth[id]).find(Boolean) || null,
   normalizeAuthEntry: (entry) => entry,
 };
 
@@ -33,6 +33,8 @@ describe('omniroute quota plugin', () => {
   });
 
   it('is not configured when no auth or env key is available', async () => {
+    vi.spyOn(ctx, 'readAuthFile').mockReturnValue({});
+    vi.spyOn(ctx, 'getAuthEntry').mockReturnValue(null);
     const mod = await import(PLUGIN_PATH);
     const plugin = mod.default(ctx);
     expect(plugin.isConfigured()).toBe(false);
@@ -121,6 +123,27 @@ describe('omniroute quota plugin', () => {
     expect(result.configured).toBe(true);
     expect(result.error).toContain('Unable to reach OmniRoute quota API');
     expect(result.error).not.toBe('fetch failed');
+  });
+
+
+  it('uses OpenCode auth and local OmniRoute config without OpenChamber env credentials', async () => {
+    delete process.env.OMNIROUTE_BASE_URL;
+    delete process.env.OMNIROUTE_API_KEY;
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ providers: [] }) });
+
+    const mod = await import(PLUGIN_PATH);
+    const plugin = mod.default(ctx);
+    const result = await plugin.fetchQuota();
+
+    expect(result.ok).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/usage/quota'),
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer sk-test' }) }),
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('localhost:20128'),
+      expect.anything(),
+    );
   });
 
 });

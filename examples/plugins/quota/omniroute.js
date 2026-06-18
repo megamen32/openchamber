@@ -1,3 +1,7 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
 // Example OpenChamber quota plugin for OmniRoute.
 //
 // Copy this file to:
@@ -7,8 +11,8 @@
 // - add an `omniroute` auth entry through OpenChamber/OpenCode provider auth, or
 // - set OMNIROUTE_API_KEY in the environment that starts OpenChamber.
 //
-// Optional:
-// - OMNIROUTE_BASE_URL defaults to http://localhost:20128
+// Base URL is resolved from the OpenCode provider config or local OmniRoute config.
+// Environment variables are only a last-resort fallback for custom deployments.
 
 export default ({
   buildResult,
@@ -22,7 +26,66 @@ export default ({
 }) => {
   const providerId = 'omniroute';
   const providerName = 'OmniRoute';
-  const baseUrl = process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128';
+  const normalizeBaseUrl = (value) => {
+    if (!value || typeof value !== 'string') return null;
+    return value.replace(/\/+$/, '').replace(/\/v1$/i, '');
+  };
+
+  const readJsonFile = (filePath) => {
+    try {
+      if (!fs.existsSync(filePath)) return null;
+      const raw = fs.readFileSync(filePath, 'utf8').trim();
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+
+  const readEnvFile = (filePath) => {
+    try {
+      if (!fs.existsSync(filePath)) return {};
+      return Object.fromEntries(
+        fs.readFileSync(filePath, 'utf8')
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line && !line.startsWith('#') && line.includes('='))
+          .map((line) => {
+            const index = line.indexOf('=');
+            return [line.slice(0, index), line.slice(index + 1)];
+          }),
+      );
+    } catch {
+      return {};
+    }
+  };
+
+  const resolveBaseUrl = () => {
+    const auth = readAuthFile();
+    const entry = normalizeAuthEntry(getAuthEntry(auth, ['omniroute']));
+    const authBaseUrl = normalizeBaseUrl(entry?.baseURL || entry?.baseUrl || entry?.url || entry?.endpoint);
+    if (authBaseUrl) return authBaseUrl;
+
+    const openCodeConfig = readJsonFile(path.join(os.homedir(), '.config', 'opencode', 'opencode.jsonc'));
+    const providerBaseUrl = normalizeBaseUrl(
+      openCodeConfig?.provider?.omniroute?.options?.baseURL
+        || openCodeConfig?.provider?.omniroute?.options?.baseUrl
+        || openCodeConfig?.provider?.omniroute?.baseURL
+        || openCodeConfig?.provider?.omniroute?.baseUrl,
+    );
+
+    // The OpenCode chat API may use the public /v1 endpoint, while quota endpoints
+    // are served by the local OmniRoute dashboard/API on this host. Prefer the
+    // local OmniRoute PORT from its own config when the provider points at OmniRoute.
+    if (providerBaseUrl && !/omniroute/i.test(providerBaseUrl)) return providerBaseUrl;
+
+    const omniEnv = readEnvFile(path.join(os.homedir(), '.omniroute', '.env'));
+    const localPort = omniEnv.PORT || omniEnv.DASHBOARD_PORT || omniEnv.API_PORT;
+    if (localPort) return `http://127.0.0.1:${localPort}`;
+
+    return providerBaseUrl || normalizeBaseUrl(process.env.OMNIROUTE_BASE_URL) || 'http://127.0.0.1:20130';
+  };
+
 
   const WINDOW_LABELS = {
     session: '5h',
@@ -34,7 +97,6 @@ export default ({
   };
 
   const getApiKey = () => {
-    if (process.env.OMNIROUTE_API_KEY) return process.env.OMNIROUTE_API_KEY;
     const auth = readAuthFile();
     const entry = normalizeAuthEntry(getAuthEntry(auth, ['omniroute']));
     return entry?.key || entry?.token || null;
@@ -47,7 +109,7 @@ export default ({
       : null;
   };
 
-  const safeFetch = async (pathname) => {
+  const safeFetch = async (baseUrl, pathname) => {
     const headers = authHeaders();
     if (!headers) throw new Error('Not configured');
     const response = await fetch(`${baseUrl}${pathname}`, { headers });
@@ -150,6 +212,7 @@ export default ({
     isConfigured: () => Boolean(getApiKey()),
 
     fetchQuota: async () => {
+      let baseUrl = resolveBaseUrl();
       try {
         const headers = authHeaders();
         if (!headers) {
@@ -163,8 +226,8 @@ export default ({
         }
 
         const [quotaResponse, limitsResponse] = await Promise.all([
-          safeFetch('/api/usage/quota'),
-          safeFetch('/api/usage/provider-limits'),
+          safeFetch(baseUrl, '/api/usage/quota'),
+          safeFetch(baseUrl, '/api/usage/provider-limits'),
         ]);
 
         const providerMap = {};
