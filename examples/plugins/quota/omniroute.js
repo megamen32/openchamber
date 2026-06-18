@@ -24,28 +24,13 @@ export default ({
   const providerName = 'OmniRoute';
   const baseUrl = process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128';
 
-  const providerLabels = {
-    codex: 'Codex',
-    deepseek: 'DeepSeek',
-    glm: 'GLM',
-    openrouter: 'OpenRouter',
-    'github-models': 'GitHub Models',
-    claude: 'Claude',
-  };
-
-  const windowLabels = {
+  const WINDOW_LABELS = {
     session: '5h',
     weekly: 'weekly',
     credits_usd: 'credits',
     credits: 'credits',
     daily: 'daily',
-  };
-
-  const formatTokens = (value) => {
-    if (value >= 1e9) return `${(value / 1e9).toFixed(1)}B`;
-    if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
-    if (value >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-    return String(value);
+    mcp_monthly: 'MCP monthly',
   };
 
   const getApiKey = () => {
@@ -53,6 +38,108 @@ export default ({
     const auth = readAuthFile();
     const entry = normalizeAuthEntry(getAuthEntry(auth, ['omniroute']));
     return entry?.key || entry?.token || null;
+  };
+
+  const authHeaders = () => {
+    const apiKey = getApiKey();
+    return apiKey
+      ? { Authorization: `Bearer ${apiKey.trim()}`, Accept: 'application/json' }
+      : null;
+  };
+
+  const safeFetch = async (pathname) => {
+    const headers = authHeaders();
+    if (!headers) throw new Error('Not configured');
+    const response = await fetch(`${baseUrl}${pathname}`, { headers });
+    if (!response.ok) {
+      const message = response.status === 401
+        ? 'Invalid API key or missing scopes'
+        : `OmniRoute API error: ${response.status}`;
+      throw new Error(message);
+    }
+    return response.json();
+  };
+
+  const formatTokens = (value) => {
+    if (value == null) return '-';
+    const n = Number(value);
+    if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+    if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+    return String(n);
+  };
+
+  const aggregateByProvider = (providerMap, limits) => {
+    const windowsByProvider = {};
+
+    for (const [connectionId, info] of Object.entries(limits)) {
+      const provider = providerMap[connectionId];
+      if (!provider || !info?.quotas) continue;
+
+      if (!windowsByProvider[provider]) {
+        windowsByProvider[provider] = {};
+      }
+
+      for (const [windowKey, windowValue] of Object.entries(info.quotas)) {
+        const label = WINDOW_LABELS[windowKey] || windowValue.displayName || windowKey;
+        const title = `${provider} (${label})`;
+        const existing = windowsByProvider[provider][title];
+        const used = toNumber(windowValue.used);
+        const total = toNumber(windowValue.total);
+        const usedPercent = total != null && total > 0
+          ? Math.round(((used ?? 0) / total) * 1000) / 10
+          : toNumber(windowValue.remainingPercentage) != null
+            ? 100 - toNumber(windowValue.remainingPercentage)
+            : null;
+        const resetAt = toTimestamp(windowValue.resetAt);
+
+        if (!existing) {
+          windowsByProvider[provider][title] = {
+            used: used ?? 0,
+            total,
+            usedPercent,
+            resetAt,
+            unlimited: windowValue.unlimited === true,
+          };
+        } else {
+          existing.used += used ?? 0;
+          if (existing.total != null && total != null) {
+            existing.total += total;
+          } else if (total != null) {
+            existing.total = total;
+          }
+          existing.usedPercent = existing.total != null && existing.total > 0
+            ? Math.round((existing.used / existing.total) * 1000) / 10
+            : existing.usedPercent;
+          if (resetAt != null && (existing.resetAt == null || resetAt < existing.resetAt)) {
+            existing.resetAt = resetAt;
+          }
+          existing.unlimited = existing.unlimited && windowValue.unlimited === true;
+        }
+      }
+    }
+
+    const windows = {};
+    for (const providerWindows of Object.values(windowsByProvider)) {
+      for (const [title, aggregate] of Object.entries(providerWindows)) {
+        let valueLabel = null;
+        if (aggregate.unlimited) {
+          valueLabel = `${formatTokens(aggregate.used)} used`;
+        } else if (aggregate.total != null && aggregate.total > 0) {
+          valueLabel = `${formatTokens(aggregate.used)} / ${formatTokens(aggregate.total)}`;
+        } else if (aggregate.used != null) {
+          valueLabel = `${formatTokens(aggregate.used)} used`;
+        }
+        windows[title] = toUsageWindow({
+          usedPercent: aggregate.usedPercent,
+          windowSeconds: null,
+          resetAt: aggregate.resetAt,
+          valueLabel,
+        });
+      }
+    }
+
+    return windows;
   };
 
   return {
@@ -63,80 +150,39 @@ export default ({
     isConfigured: () => Boolean(getApiKey()),
 
     fetchQuota: async () => {
-      const apiKey = getApiKey();
-      if (!apiKey) {
-        return buildResult({
-          providerId,
-          providerName,
-          ok: false,
-          configured: false,
-          error: 'Not configured. Set OMNIROUTE_API_KEY or add an omniroute auth entry.',
-        });
-      }
-
       try {
-        const response = await fetch(`${baseUrl}/api/v1/me/status`, {
-          headers: {
-            Authorization: `Bearer ${apiKey.trim()}`,
-            Accept: 'application/json',
-          },
-        });
-
-        if (!response.ok) {
+        const headers = authHeaders();
+        if (!headers) {
           return buildResult({
             providerId,
             providerName,
             ok: false,
-            configured: true,
-            error: response.status === 401
-              ? 'Invalid API key or missing self:usage scope'
-              : `OmniRoute API error: ${response.status}`,
+            configured: false,
+            error: 'Not configured. Set OMNIROUTE_API_KEY or add an omniroute auth entry.',
           });
         }
 
-        const data = await response.json();
-        const windows = {};
+        const [quotaResponse, limitsResponse] = await Promise.all([
+          safeFetch('/api/usage/quota'),
+          safeFetch('/api/usage/provider-limits'),
+        ]);
 
-        const cost = data?.usage?.cost;
-        if (cost) {
-          const used = toNumber(cost.usedUsd);
-          const limit = toNumber(cost.limitUsd);
-          const usedPercent = toNumber(cost.usedPercent);
-          windows['Cost (monthly)'] = toUsageWindow({
-            usedPercent,
-            windowSeconds: null,
-            resetAt: toTimestamp(cost.resetAt),
-            valueLabel: used != null && limit != null
-              ? `$${formatMoney(used)} / $${formatMoney(limit)}`
-              : used != null
-                ? `$${formatMoney(used)} used`
-                : null,
-          });
-        }
-
-        const tokens = data?.usage?.tokens;
-        const totalTokens = toNumber(tokens?.totalTokens);
-        if (totalTokens != null) {
-          windows['Tokens (month)'] = toUsageWindow({
-            usedPercent: null,
-            windowSeconds: null,
-            resetAt: toTimestamp(tokens?.periodStartAt),
-            valueLabel: `${formatTokens(totalTokens)} total`,
-          });
-        }
-
-        for (const quotaGroup of data?.accountQuotas || []) {
-          if (!quotaGroup?.quotas || typeof quotaGroup.quotas !== 'object') continue;
-          const providerLabel = providerLabels[quotaGroup.provider] || quotaGroup.provider;
-          for (const [windowKey, windowValue] of Object.entries(quotaGroup.quotas)) {
-            const windowLabel = windowLabels[windowKey] || windowKey;
-            windows[`${providerLabel} (${windowLabel})`] = toUsageWindow({
-              usedPercent: toNumber(windowValue.usedPercentage),
-              windowSeconds: null,
-              resetAt: toTimestamp(windowValue.resetAt),
-            });
+        const providerMap = {};
+        for (const entry of quotaResponse?.providers || []) {
+          if (entry?.connectionId && entry?.provider) {
+            providerMap[entry.connectionId] = entry.provider;
           }
         }
+
+        // /api/usage/provider-limits returns { caches: { connId: { quotas, plan, ... } },
+        // intervalMinutes, lastAutoSyncAt } — fall back to the flat map shape so
+        // direct fetches (and existing tests) still work.
+        const limitsMap = (limitsResponse && typeof limitsResponse === 'object'
+          && limitsResponse.caches && typeof limitsResponse.caches === 'object')
+          ? limitsResponse.caches
+          : (limitsResponse || {});
+
+        const windows = aggregateByProvider(providerMap, limitsMap);
 
         return buildResult({
           providerId,
@@ -146,12 +192,16 @@ export default ({
           usage: { windows },
         });
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error || 'unknown error');
+        const isNetworkFailure = /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|network/i.test(message);
         return buildResult({
           providerId,
           providerName,
           ok: false,
           configured: true,
-          error: error instanceof Error ? error.message : 'OmniRoute request failed',
+          error: isNetworkFailure
+            ? `Unable to reach OmniRoute quota API at ${baseUrl}`
+            : `Failed to fetch OmniRoute quota: ${message}`,
         });
       }
     },
