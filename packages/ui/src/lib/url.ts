@@ -20,16 +20,42 @@ export const isExternalHttpUrl = (url: string): boolean => {
   return parsed.protocol === 'http:' || parsed.protocol === 'https:';
 };
 
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+
+const isPrivateIpv4Address = (hostname: string): boolean => {
+  const parts = hostname.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  const [first, second] = parts;
+  return first === 10
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && second === 168)
+    || (first === 169 && second === 254);
+};
+
+const isPrivateOrLoopbackHostname = (hostname: string): boolean => {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  return LOOPBACK_HOSTNAMES.has(normalized)
+    || normalized.endsWith('.localhost')
+    || normalized.endsWith('.local')
+    || isPrivateIpv4Address(normalized);
+};
+
 export const getExternalFaviconUrl = (url: string): string | null => {
   const parsed = parseUrlSafely(url.trim());
   if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
     return null;
   }
 
-  return `https://icons.duckduckgo.com/ip3/${parsed.hostname.toLowerCase()}.ico`;
-};
+  const hostname = parsed.hostname.toLowerCase();
+  if (isPrivateOrLoopbackHostname(hostname)) {
+    return null;
+  }
 
-const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+  return `https://icons.duckduckgo.com/ip3/${hostname}.ico`;
+};
 
 /**
  * Returns true when the URL is an http(s) URL pointing at a loopback host
