@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { getDefaultTheme } from '@/lib/theme/themes';
 import type { Theme } from '@/types/theme';
+import { getEmbeddedChatThemeSync } from './contextPanelThemeSync';
 import { buildEmbeddedSessionChatURL, getOrCreateEmbeddedSessionChatURL, type EmbeddedSessionChatURLCacheEntry } from './contextPanelEmbeddedChat';
 
 const originalWindow = globalThis.window;
@@ -97,4 +98,19 @@ describe('embedded session chat URL', () => {
     expect(new URL(writable).searchParams.get('readOnly')).toBeNull();
     expect(new URL(readOnly).searchParams.get('readOnly')).toBe('1');
   });
+
+  test('ignores cross-origin SecurityError when reading iframe theme sync hook', () => {
+    const frameWindow = {};
+    Object.defineProperty(frameWindow, '__openchamberApplyThemeSync', {
+      get() {
+        throw new DOMException(
+          'Blocked a frame with origin https://opencode.bezrabotnyi.com from accessing a cross-origin frame.',
+          'SecurityError',
+        );
+      },
+    });
+
+    expect(getEmbeddedChatThemeSync(frameWindow as Window)).toBeNull();
+  });
+
 });

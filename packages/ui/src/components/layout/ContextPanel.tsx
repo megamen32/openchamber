@@ -27,6 +27,7 @@ import { Icon } from "@/components/icon/Icon";
 import { OpenChamberLogo } from "@/components/ui/OpenChamberLogo";
 import { invokeDesktopCommand } from '@/lib/desktopNative';
 import { getOrCreateEmbeddedSessionChatURL, type EmbeddedSessionChatURLCacheEntry } from './contextPanelEmbeddedChat';
+import { getEmbeddedChatThemeSync } from './contextPanelThemeSync';
 import {
   type PreviewElementMetadata,
   isPreviewElementMetadata,
@@ -1967,6 +1968,7 @@ const DesktopBrowserPane: React.FC<DesktopBrowserPaneProps> = ({ initialUrl, dir
   );
 };
 
+
 export const ContextPanel: React.FC = () => {
   const { t } = useI18n();
   const effectiveDirectory = useEffectiveDirectory() ?? '';
@@ -2206,11 +2208,8 @@ export const ContextPanel: React.FC = () => {
         continue;
       }
 
-      const directThemeSync = (frameWindow as unknown as {
-        __openchamberApplyThemeSync?: (themePayload: typeof payload) => void;
-      }).__openchamberApplyThemeSync;
-
-      if (typeof directThemeSync === 'function') {
+      const directThemeSync = getEmbeddedChatThemeSync(frameWindow);
+      if (directThemeSync) {
         try {
           directThemeSync(payload);
           continue;
