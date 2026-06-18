@@ -146,4 +146,52 @@ describe('omniroute quota plugin', () => {
     );
   });
 
+
+  it('renders DeepSeek USD credit balance as remaining money instead of zero used', async () => {
+    globalThis.fetch = vi.fn().mockImplementation((url) => {
+      if (url.includes('/api/usage/quota')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            providers: [
+              { name: 'DeepSeek empty', provider: 'deepseek', connectionId: 'deepseek-empty', quotaUsed: 0, quotaTotal: null, percentRemaining: 100 },
+              { name: 'DeepSeek funded', provider: 'deepseek', connectionId: 'deepseek-funded', quotaUsed: 0, quotaTotal: null, percentRemaining: 100 },
+            ],
+          }),
+        });
+      }
+      if (url.includes('/api/usage/provider-limits')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            caches: {
+              'deepseek-empty': {
+                quotas: {
+                  credits_usd: { used: 0, total: 0, remaining: 0, remainingPercentage: 100, resetAt: null, unlimited: true, currency: 'USD' },
+                },
+                plan: 'DeepSeek (Insufficient Balance)',
+              },
+              'deepseek-funded': {
+                quotas: {
+                  credits_usd: { used: 0, total: 0, remaining: 4.24, remainingPercentage: 100, resetAt: null, unlimited: true, currency: 'USD' },
+                },
+                plan: 'DeepSeek',
+              },
+            },
+          }),
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404 });
+    });
+
+    const mod = await import(PLUGIN_PATH);
+    const plugin = mod.default(ctx);
+    const result = await plugin.fetchQuota();
+
+    expect(result.ok).toBe(true);
+    expect(result.usage.windows['deepseek (credits)']).toBeDefined();
+    expect(result.usage.windows['deepseek (credits)'].valueLabel).toBe('$4.24 remaining');
+    expect(result.usage.windows['deepseek (credits)'].valueLabel).not.toBe('0 used');
+  });
+
 });

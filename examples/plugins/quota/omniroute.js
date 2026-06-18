@@ -148,6 +148,8 @@ export default ({
         const existing = windowsByProvider[provider][title];
         const used = toNumber(windowValue.used);
         const total = toNumber(windowValue.total);
+        const remaining = toNumber(windowValue.remaining);
+        const currency = typeof windowValue.currency === 'string' ? windowValue.currency : null;
         const usedPercent = total != null && total > 0
           ? Math.round(((used ?? 0) / total) * 1000) / 10
           : toNumber(windowValue.remainingPercentage) != null
@@ -162,6 +164,8 @@ export default ({
             usedPercent,
             resetAt,
             unlimited: windowValue.unlimited === true,
+            remaining,
+            currency,
           };
         } else {
           existing.used += used ?? 0;
@@ -173,6 +177,12 @@ export default ({
           existing.usedPercent = existing.total != null && existing.total > 0
             ? Math.round((existing.used / existing.total) * 1000) / 10
             : existing.usedPercent;
+          if (remaining != null) {
+            existing.remaining = (existing.remaining ?? 0) + remaining;
+          }
+          if (currency != null) {
+            existing.currency = existing.currency || currency;
+          }
           if (resetAt != null && (existing.resetAt == null || resetAt < existing.resetAt)) {
             existing.resetAt = resetAt;
           }
@@ -181,12 +191,26 @@ export default ({
       }
     }
 
+    const formatCurrency = (value, currency) => {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return String(value);
+      const formatted = number.toFixed(2).replace(/\.00$/, '');
+      if (currency === 'USD') return `$${formatted}`;
+      return `${formatted} ${currency || 'credits'}`;
+    };
+
     const windows = {};
     for (const providerWindows of Object.values(windowsByProvider)) {
       for (const [title, aggregate] of Object.entries(providerWindows)) {
         let valueLabel = null;
-        if (aggregate.unlimited) {
-          valueLabel = `${formatTokens(aggregate.used)} used`;
+        if (aggregate.currency && aggregate.remaining != null) {
+          valueLabel = `${formatCurrency(aggregate.remaining, aggregate.currency)} remaining`;
+        } else if (aggregate.remaining != null && aggregate.total == null && /credit|balance|usd/i.test(title)) {
+          valueLabel = `${formatTokens(aggregate.remaining)} remaining`;
+        } else if (aggregate.unlimited) {
+          valueLabel = aggregate.remaining != null
+            ? `${formatTokens(aggregate.remaining)} remaining`
+            : `${formatTokens(aggregate.used)} used`;
         } else if (aggregate.total != null && aggregate.total > 0) {
           valueLabel = `${formatTokens(aggregate.used)} / ${formatTokens(aggregate.total)}`;
         } else if (aggregate.used != null) {
