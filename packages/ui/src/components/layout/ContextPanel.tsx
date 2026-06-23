@@ -28,6 +28,7 @@ import { OpenChamberLogo } from "@/components/ui/OpenChamberLogo";
 import { invokeDesktopCommand } from '@/lib/desktopNative';
 import { getOrCreateEmbeddedSessionChatURL, type EmbeddedSessionChatURLCacheEntry } from './contextPanelEmbeddedChat';
 import { getEmbeddedChatThemeSync } from './contextPanelThemeSync';
+import { getEmbeddedChatVisibilitySync } from './contextPanelEmbeddedVisibility';
 import {
   type PreviewElementMetadata,
   isPreviewElementMetadata,
@@ -2240,11 +2241,9 @@ export const ContextPanel: React.FC = () => {
       }
 
       const payload = { visible: activeChatTabID === tabID };
-      const directVisibilitySync = (frameWindow as unknown as {
-        __openchamberSetEmbeddedVisibility?: (visibilityPayload: typeof payload) => void;
-      }).__openchamberSetEmbeddedVisibility;
+      const directVisibilitySync = getEmbeddedChatVisibilitySync(frameWindow);
 
-      if (typeof directVisibilitySync === 'function') {
+      if (directVisibilitySync) {
         try {
           directVisibilitySync(payload);
           continue;
