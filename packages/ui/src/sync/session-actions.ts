@@ -1057,7 +1057,7 @@ const getFetchPageSize = () => {
 
 export async function fetchMessagesForSession(sessionID: string, directory?: string | null): Promise<void> {
   const resolvedDir = directory ?? dir()
-  if (!resolvedDir) return
+  if (!resolvedDir || !_sdk) return
 
   const s = sdk()
   const store = directory
