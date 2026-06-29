@@ -4,8 +4,6 @@ import {
   normalizeAuthEntry,
   buildResult,
   toUsageWindow,
-  toNumber,
-  toTimestamp,
   resolveWindowSeconds,
   resolveWindowLabel,
   normalizeTimestamp
@@ -13,7 +11,7 @@ import {
 
 export const providerId = 'zai-coding-plan';
 export const providerName = 'z.ai';
-const aliases = ['zai-coding-plan', 'zai', 'z.ai'];
+export const aliases = ['zai-coding-plan', 'zai', 'z.ai'];
 
 export const isConfigured = () => {
   const auth = readAuthFile();

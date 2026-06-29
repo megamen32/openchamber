@@ -37,6 +37,7 @@ export const normalizeTimestamp = (value) => {
 export const resolveWindowSeconds = (limit) => {
   if (!limit) return null;
 
+  // unit=6 → direct weekly (7 days)
   if (limit.unit === 6) return 604800;
 
   if (!limit.number) return null;
