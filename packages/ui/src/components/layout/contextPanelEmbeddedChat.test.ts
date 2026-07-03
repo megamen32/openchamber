@@ -58,7 +58,8 @@ describe('embedded session chat URL', () => {
     expect(url.searchParams.get('themeVariant')).toBe('dark');
     expect(url.searchParams.get('lightThemeId')).toBe('custom-light');
     expect(url.searchParams.get('darkThemeId')).toBe('custom-dark');
-    expect(JSON.parse(url.searchParams.get('currentTheme') || '{}').metadata.id).toBe('custom-dark');
+    expect(url.searchParams.has('currentTheme')).toBe(false);
+    expect(src.length).toBeLessThan(300);
   });
 
   test('freezes bootstrap src per tab so live theme changes do not reload iframe', () => {
