@@ -1,3 +1,9 @@
+## [1.14.0] - 2026-07-05
+
+- Chat: loading older messages keeps your scroll position steady.
+- Chat: the stop button now aborts sessions running in a different project or worktree than the currently open one — previously those aborts silently did nothing.
+- Startup: on Windows, OpenCode installed via npm now launches from paths with spaces (such as C:\Program Files\nodejs), a binary path pasted with surrounding quotes into the Opencode Binary setting works, and discovery also checks the system-wide npm prefix and Scoop's shims.
+
 ## [1.13.9] - 2026-07-02
 
 - Agents: clearing optional agent fields now removes them from agent config instead of saving `null` values.

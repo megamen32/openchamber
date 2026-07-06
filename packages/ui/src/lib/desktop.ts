@@ -113,6 +113,9 @@ export type DesktopSettings = {
   defaultModel?: string; // format: "provider/model"
   defaultVariant?: string;
   defaultAgent?: string;
+  smallModelUseDefault?: boolean;
+  sessionAssistEnabled?: boolean;
+  smallModelOverride?: string; // format: "provider/model"
   defaultGitIdentityId?: string; // ''/undefined = unset, 'global' or profile id
   openInAppId?: string;
   autoCreateWorktree?: boolean;
@@ -178,14 +181,12 @@ export type DesktopSettings = {
   responseStyleEnabled?: boolean;
   responseStylePreset?: 'concise' | 'detailed' | 'mentor' | 'pushback' | 'noFiller' | 'matchEnergy' | 'warmPeer' | 'custom';
   responseStyleCustomInstructions?: string;
-  sttProvider?: 'browser' | 'server' | 'wasm';
+  dictationEnabled?: boolean;
+  sttProvider?: 'local' | 'openai-compatible';
   sttServerUrl?: string;
   sttModel?: string;
-  wasmSttModel?: string;
+  sttLocalModel?: string;
   sttLanguage?: string;
-  sttSilenceThresholdDb?: number;
-  sttSilenceHoldMs?: number;
-  sttTranscribeOnStop?: boolean;
   // Global draft welcome starters (pinned commands/skills), persisted to settings.json
   draftStarters?: DraftStarterRef[];
 };

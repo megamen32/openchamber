@@ -167,6 +167,12 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['streaming', 'sse', 'websocket'],
   },
   {
+    id: 'chat.session-assist',
+    page: 'chat',
+    titleKey: 'settings.openchamber.visual.field.sessionAssist',
+    keywords: ['recap', 'suggestion', 'assist', 'small model', 'summary'],
+  },
+  {
     id: 'chat.reasoning-traces',
     page: 'chat',
     titleKey: 'settings.openchamber.visual.field.showReasoningTraces',
@@ -259,6 +265,13 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     page: 'sessions',
     titleKey: 'settings.openchamber.defaults.field.showDeletionDialog',
     keywords: ['delete', 'confirmation'],
+  },
+  {
+    id: 'sessions.small-model',
+    page: 'sessions',
+    titleKey: 'settings.openchamber.defaults.smallModel.title',
+    descriptionKey: 'settings.openchamber.defaults.smallModel.description',
+    keywords: ['small model', 'utility', 'summary', 'recap', 'cheap', 'override'],
   },
   {
     id: 'sessions.auto-cleanup',
@@ -678,22 +691,16 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['keyboard', 'hotkeys', 'bindings'],
   },
   {
-    id: 'voice.voice-setup',
+    id: 'voice.playback',
     page: 'voice',
-    titleKey: 'settings.voice.page.section.voiceSetup',
-    keywords: ['tts', 'voice mode', 'provider', 'speech rate', 'speech pitch', 'speech volume', 'language'],
+    titleKey: 'settings.voice.page.section.playbackAndSummary',
+    keywords: ['tts', 'read aloud', 'voice', 'provider', 'speech rate', 'speech pitch', 'speech volume', 'tts input mode', 'markdown'],
   },
   {
     id: 'voice.speech-recognition',
     page: 'voice',
     titleKey: 'settings.voice.page.section.speechRecognition',
-    keywords: ['stt', 'transcribe', 'whisper', 'microphone', 'silence threshold'],
-  },
-  {
-    id: 'voice.playback',
-    page: 'voice',
-    titleKey: 'settings.voice.page.section.playbackAndSummary',
-    keywords: ['read aloud', 'tts input mode', 'summary', 'markdown'],
+    keywords: ['stt', 'dictation', 'voice input', 'transcribe', 'whisper', 'parakeet', 'microphone'],
   },
   {
     id: 'tunnel.provider',

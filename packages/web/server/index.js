@@ -38,6 +38,7 @@ import { prepareNotificationLastMessage } from './lib/notifications/index.js';
 import { registerTtsRoutes } from './lib/tts/routes.js';
 import { detectSayTtsCapability } from './lib/tts/capability-runtime.js';
 import { createTerminalRuntime } from './lib/terminal/runtime.js';
+import { createDictationRuntime } from './lib/dictation/runtime.js';
 import {
   createGlobalUiEventBroadcaster,
   createGlobalMessageStreamHub,
@@ -71,6 +72,7 @@ import { createOpenCodeResolutionRuntime } from './lib/opencode/opencode-resolut
 import { createBootstrapRuntime } from './lib/opencode/bootstrap-runtime.js';
 import { createSessionRuntime } from './lib/opencode/session-runtime.js';
 import { createOpenCodeWatcherRuntime } from './lib/opencode/watcher.js';
+import { createSessionAssistRuntime } from './lib/session-assist/runtime.js';
 import { createScheduledTasksRuntime } from './lib/scheduled-tasks/runtime.js';
 import { createServerStartupRuntime } from './lib/opencode/server-startup-runtime.js';
 import { createTunnelWiringRuntime } from './lib/opencode/tunnel-wiring-runtime.js';
@@ -495,6 +497,7 @@ const tunnelAuthController = createTunnelAuth();
 let runtimeManagedRemoteTunnelToken = '';
 let runtimeManagedRemoteTunnelHostname = '';
 let terminalRuntime = null;
+let dictationRuntime = null;
 let messageStreamRuntime = null;
 const userProvidedOpenCodePassword = hmrStateRuntime.getUserProvidedOpenCodePassword(hmrState);
 const initialOpenCodeAuthState = hmrStateRuntime.resolveOpenCodeAuthFromState({
@@ -711,6 +714,12 @@ const maybeSendPushForTrigger = (...args) => notificationTriggerRuntime.maybeSen
 const setAutoAcceptSession = (...args) => notificationTriggerRuntime.setAutoAcceptSession(...args);
 clearPendingPushBadge = () => notificationTriggerRuntime.clearPendingPushBadge();
 
+const sessionAssistRuntime = createSessionAssistRuntime({
+  buildOpenCodeUrl,
+  getOpenCodeAuthHeaders,
+  getSmallModelService: async () => import('./lib/small-model/index.js'),
+});
+
 const globalMessageStreamHub = createGlobalMessageStreamHub({
   buildOpenCodeUrl,
   getOpenCodeAuthHeaders,
@@ -728,6 +737,19 @@ const openCodeWatcherRuntime = createOpenCodeWatcherRuntime({
     void maybeSendPushForTrigger(payload);
     sessionRuntime.processOpenCodeSsePayload(payload);
   },
+});
+
+// Session-assist subscribes to the hub directly: it needs the envelope's
+// directory to route its own OpenCode calls to the right instance.
+console.log('[session-assist] listening for session events');
+globalMessageStreamHub.subscribeEvent((event) => {
+  const raw = event?.payload;
+  const payload = raw?.payload && typeof raw.payload === 'object' ? raw.payload : raw;
+  if (!payload || typeof payload !== 'object') return;
+  const directory = typeof event?.directory === 'string' && event.directory && event.directory !== 'global'
+    ? event.directory
+    : '';
+  sessionAssistRuntime.processPayload(payload, directory);
 });
 
 const processForwardedEventPayload = (payload, emitSyntheticEvent) => {
@@ -898,6 +920,7 @@ const tunnelWiringRuntime = createTunnelWiringRuntime({
 });
 const startupPipelineRuntime = createStartupPipelineRuntime({
   createTerminalRuntime,
+  createDictationRuntime,
   createMessageStreamWsRuntime,
   createServerStartupRuntime,
 });
@@ -1011,11 +1034,12 @@ const bootstrapOpenCodeAtStartup = async (...args) => {
   if (openCodeLifecycleState.openCodeProcess && !openCodeLifecycleState.isExternalOpenCode) {
     startHealthMonitoring();
   }
-  if (ENV_DESKTOP_NOTIFY) {
-    void ensureGlobalWatcherStarted().catch((error) => {
-      console.warn(`Global event watcher startup failed: ${error?.message || error}`);
-    });
-  }
+  // The global watcher used to start only for desktop notifications; the
+  // session-assist runtime also rides its event hub, so it now starts
+  // unconditionally once OpenCode is up.
+  void ensureGlobalWatcherStarted().catch((error) => {
+    console.warn(`Global event watcher startup failed: ${error?.message || error}`);
+  });
 };
 const killProcessOnPort = (...args) => openCodeLifecycleRuntime.killProcessOnPort(...args);
 const waitForPortRelease = (...args) => openCodeLifecycleRuntime.waitForPortRelease(...args);
@@ -1034,6 +1058,7 @@ const gracefulShutdownRuntime = createGracefulShutdownRuntime({
   },
   syncToHmrState,
   openCodeWatcherRuntime,
+  sessionAssistRuntime,
   sessionRuntime,
   getHealthCheckInterval: () => healthCheckInterval,
   clearHealthCheckInterval: (value) => clearInterval(value),
@@ -1357,8 +1382,10 @@ async function main(options = {}) {
     tunnelRuntimeContext,
     attachSignals,
     apiOnly,
+    dictationModelsDir: path.join(OPENCHAMBER_USER_CONFIG_ROOT, 'speech-models'),
   });
   terminalRuntime = startupPipelineResult.terminalRuntime;
+  dictationRuntime = startupPipelineResult.dictationRuntime;
   messageStreamRuntime = startupPipelineResult.messageStreamRuntime;
 
   try {
@@ -1397,6 +1424,11 @@ async function main(options = {}) {
     },
     stop: (shutdownOptions = {}) => {
       realtimeProxyRuntime.stop();
+      try {
+        dictationRuntime?.stop?.();
+      } catch {
+        // best-effort shutdown of the dictation worker
+      }
       return gracefulShutdown({ exitProcess: shutdownOptions.exitProcess ?? false });
     }
   };
