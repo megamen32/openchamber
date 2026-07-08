@@ -17,6 +17,8 @@ export type UpdateInfo = {
   currentVersion: string;
   body?: string;
   date?: string;
+  releaseUrl?: string;
+  downloadUrl?: string;
   nextSuggestedCheckInSec?: number;
   // Web-specific fields
   packageManager?: string;
@@ -114,7 +116,8 @@ export type DesktopSettings = {
   defaultVariant?: string;
   defaultAgent?: string;
   smallModelUseDefault?: boolean;
-  sessionAssistEnabled?: boolean;
+  sessionRecapEnabled?: boolean;
+  sessionSuggestionEnabled?: boolean;
   smallModelOverride?: string; // format: "provider/model"
   defaultGitIdentityId?: string; // ''/undefined = unset, 'global' or profile id
   openInAppId?: string;

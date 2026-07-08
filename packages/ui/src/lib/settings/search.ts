@@ -1,6 +1,7 @@
 import type { I18nKey } from '@/lib/i18n/store';
 import type { SettingsPageSlug, SettingsRuntimeContext } from './metadata';
 import { getSettingsPageMeta } from './metadata';
+import { RELAY_UI_ENABLED } from '@/lib/relay/gate';
 
 interface SettingsSearchItem {
   id: string;
@@ -167,10 +168,16 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['streaming', 'sse', 'websocket'],
   },
   {
-    id: 'chat.session-assist',
+    id: 'chat.session-recap',
     page: 'chat',
-    titleKey: 'settings.openchamber.visual.field.sessionAssist',
-    keywords: ['recap', 'suggestion', 'assist', 'small model', 'summary'],
+    titleKey: 'settings.openchamber.visual.field.sessionRecap',
+    keywords: ['recap', 'assist', 'small model', 'summary'],
+  },
+  {
+    id: 'chat.session-suggestion',
+    page: 'chat',
+    titleKey: 'settings.openchamber.visual.field.sessionSuggestion',
+    keywords: ['suggestion', 'assist', 'small model', 'follow up'],
   },
   {
     id: 'chat.reasoning-traces',
@@ -419,6 +426,15 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     descriptionKey: 'settings.remoteInstances.clientAuth.description',
     keywords: ['pairing link', 'client token', 'connect desktop', 'remote access'],
     isAvailable: (ctx) => !ctx.isVSCode,
+  },
+  {
+    id: 'remote-instances.relay',
+    page: 'remote-instances',
+    titleKey: 'settings.remoteInstances.relay.title',
+    descriptionKey: 'settings.remoteInstances.relay.description',
+    keywords: ['relay', 'pairing', 'no ports', 'end-to-end encrypted', 'remote access', 'connect from anywhere'],
+    // Gated by openchamber_relay_gate until the relay UI ships publicly.
+    isAvailable: (ctx) => !ctx.isVSCode && RELAY_UI_ENABLED,
   },
   {
     id: 'remote-instances.direct-hosts',
