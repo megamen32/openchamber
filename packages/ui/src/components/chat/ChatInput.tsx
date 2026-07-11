@@ -75,6 +75,7 @@ import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { createWorktreeDraft } from '@/lib/worktreeSessionCreator';
 import { buildSessionTargetOptions } from '@/sync/session-worktree-contract';
 import { usePermissionStore } from '@/stores/permissionStore';
+import { togglePermissionAutoAccept } from './permissionAutoAccept';
 import { extractGitChangedFiles } from './changedFiles';
 import { useI18n } from '@/lib/i18n';
 import { sessionEvents } from '@/lib/sessionEvents';
@@ -556,6 +557,16 @@ const ComposerAttachmentControls = React.memo(function ComposerAttachmentControl
                         type="button"
                         className={footerIconButtonClass}
                         onClick={props.onOpenMobileSheet}
+                        // Same guard as PermissionAutoAcceptButton: keep the tap
+                        // from dismissing the keyboard. On Android's
+                        // resizes-content viewport the keyboard-close relayout
+                        // moves this button mid-tap and the click never lands.
+                        onMouseDown={(event) => event.preventDefault()}
+                        onPointerDownCapture={(event) => {
+                            if (event.pointerType === 'touch') {
+                                event.preventDefault();
+                            }
+                        }}
                         title={t('chat.chatInput.actions.addAttachment')}
                         aria-label={t('chat.chatInput.actions.addAttachment')}
                     >
@@ -638,7 +649,7 @@ const ComposerAttachmentControls = React.memo(function ComposerAttachmentControl
 type PermissionAutoAcceptButtonProps = {
     footerIconButtonClass: string;
     iconSizeClass: string;
-    permissionScopeSessionId: string | null;
+    isInteractive: boolean;
     permissionAutoAcceptEnabled: boolean;
     handlePermissionAutoAcceptToggle: () => void;
     withTooltip?: boolean;
@@ -649,7 +660,7 @@ const PermissionAutoAcceptButton = React.memo(function PermissionAutoAcceptButto
     const {
         footerIconButtonClass,
         iconSizeClass,
-        permissionScopeSessionId,
+        isInteractive,
         permissionAutoAcceptEnabled,
         handlePermissionAutoAcceptToggle,
         withTooltip = false,
@@ -669,7 +680,7 @@ const PermissionAutoAcceptButton = React.memo(function PermissionAutoAcceptButto
             className={cn(
                 footerIconButtonClass,
                 'rounded-md hover:bg-transparent',
-                !permissionScopeSessionId && 'opacity-30',
+                !isInteractive && 'opacity-30',
             )}
             onMouseDown={(event) => {
                 event.preventDefault();
@@ -1073,7 +1084,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     );
     const newSessionDraft = useSessionUIStore((s) => s.newSessionDraft);
     const newSessionDraftOpen = Boolean(newSessionDraft?.open);
+    const draftPermissionAutoAcceptEnabled = useSessionUIStore((s) => (
+        s.newSessionDraft?.open ? s.newSessionDraft.permissionAutoAcceptEnabled === true : false
+    ));
     const setNewSessionDraftTarget = useSessionUIStore((s) => s.setNewSessionDraftTarget);
+    const setDraftPermissionAutoAcceptEnabled = useSessionUIStore((s) => s.setDraftPermissionAutoAcceptEnabled);
     const openNewSessionDraft = useSessionUIStore((s) => s.openNewSessionDraft);
     const availableWorktreesByProject = useSessionUIStore((s) => s.availableWorktreesByProject);
     const abortPromptSessionId = useSessionUIStore((s) => s.abortPromptSessionId);
@@ -1111,6 +1126,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const inputBarOffset = useUIStore((state) => state.inputBarOffset);
     const persistChatDraft = useUIStore((state) => state.persistChatDraft);
     const inputSpellcheckEnabled = useUIStore((state) => state.inputSpellcheckEnabled);
+    const editorFontSize = useUIStore((state) => state.editorFontSize);
     const isExpandedInput = useUIStore((state) => state.isExpandedInput);
     const setExpandedInput = useUIStore((state) => state.setExpandedInput);
     const setTimelineDialogOpen = useUIStore((state) => state.setTimelineDialogOpen);
@@ -4087,7 +4103,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }, [newSessionDraftOpen, openNewSessionDraft, currentDirectory]);
 
     const openMobileAttachSheet = React.useCallback(() => {
+        // Same order as handleOpenMobilePanel: mark the sheet open BEFORE the
+        // blur so the collapse watcher sees an overlay when the keyboard-close
+        // lands. The trigger button blocks the tap's own focus transfer, so
+        // the keyboard must be dismissed explicitly here.
         setMobileAttachMenuOpen(true);
+        textareaRef.current?.blur();
     }, []);
 
     const mobileComposerExpandedRef = React.useRef(mobileComposerExpanded);
@@ -4507,22 +4528,32 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const permissionScopeSessionId = currentSessionId ?? currentManagementSessionId;
     const permissionAutoAcceptEnabled = usePermissionStore((state) => {
         if (!permissionScopeSessionId) {
-            return false;
+            return draftPermissionAutoAcceptEnabled;
         }
         return state.isSessionAutoAccepting(permissionScopeSessionId);
     });
+    const isPermissionAutoAcceptInteractive = Boolean(permissionScopeSessionId || newSessionDraftOpen);
 
     const handlePermissionAutoAcceptToggle = React.useCallback(() => {
-        if (!permissionScopeSessionId) {
-            toast.error(t('chat.chatInput.toast.openSessionFirst'));
-            return;
-        }
-
-        const nextEnabled = !permissionAutoAcceptEnabled;
-        setSessionAutoAccept(permissionScopeSessionId, nextEnabled).catch(() => {
-            toast.error(t('chat.chatInput.toast.togglePermissionAutoAcceptFailed'));
+        togglePermissionAutoAccept({
+            permissionScopeSessionId,
+            newSessionDraftOpen,
+            draftPermissionAutoAcceptEnabled,
+            permissionAutoAcceptEnabled,
+            setDraftPermissionAutoAcceptEnabled,
+            setSessionAutoAccept,
+            onOpenSessionFirst: () => toast.error(t('chat.chatInput.toast.openSessionFirst')),
+            onToggleFailed: () => toast.error(t('chat.chatInput.toast.togglePermissionAutoAcceptFailed')),
         });
-    }, [permissionAutoAcceptEnabled, permissionScopeSessionId, setSessionAutoAccept, t]);
+    }, [
+        draftPermissionAutoAcceptEnabled,
+        newSessionDraftOpen,
+        permissionAutoAcceptEnabled,
+        permissionScopeSessionId,
+        setDraftPermissionAutoAcceptEnabled,
+        setSessionAutoAccept,
+        t,
+    ]);
 
     React.useEffect(() => {
         const pendingAbortBanner = Boolean(abortPromptSessionId) && abortPromptSessionId === currentSessionId;
@@ -5241,6 +5272,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                     maxHeight: !isComposerExpanded && textareaSize ? `${textareaSize.maxHeight}px` : undefined,
                                     borderTopLeftRadius: chatInputRadius,
                                     borderTopRightRadius: chatInputRadius,
+                                    fontSize: `${editorFontSize}px`,
                                 }}
                                 rows={1}
                             />
@@ -5279,7 +5311,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                         <PermissionAutoAcceptButton
                                             footerIconButtonClass={footerIconButtonClass}
                                             iconSizeClass={iconSizeClass}
-                                            permissionScopeSessionId={permissionScopeSessionId}
+                                            isInteractive={isPermissionAutoAcceptInteractive}
                                             permissionAutoAcceptEnabled={permissionAutoAcceptEnabled}
                                             handlePermissionAutoAcceptToggle={handlePermissionAutoAcceptToggle}
                                         />
@@ -5347,7 +5379,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                     <PermissionAutoAcceptButton
                                         footerIconButtonClass={footerIconButtonClass}
                                         iconSizeClass={iconSizeClass}
-                                        permissionScopeSessionId={permissionScopeSessionId}
+                                        isInteractive={isPermissionAutoAcceptInteractive}
                                         permissionAutoAcceptEnabled={permissionAutoAcceptEnabled}
                                         handlePermissionAutoAcceptToggle={handlePermissionAutoAcceptToggle}
                                         withTooltip
