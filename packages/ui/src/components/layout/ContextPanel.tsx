@@ -2070,6 +2070,7 @@ export const ContextPanel: React.FC = () => {
   const reorderContextPanelTabs = useUIStore((state) => state.reorderContextPanelTabs);
   const setSelectedFilePath = useFilesViewTabsStore((state) => state.setSelectedPath);
   const openContextPreview = useUIStore((state) => state.openContextPreview);
+  const allowPromptingSubagentSessions = useUIStore((state) => state.allowPromptingSubagentSessions);
   const { themeMode, setThemeMode, lightThemeId, darkThemeId, currentTheme } = useThemeSystem();
 
   const tabs = React.useMemo(() => panelState?.tabs ?? [], [panelState?.tabs]);
@@ -2375,6 +2376,30 @@ export const ContextPanel: React.FC = () => {
     }
   }, [currentTheme, darkThemeId, lightThemeId, themeMode]);
 
+  const postChatSettingsSyncToEmbeddedChat = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+
+    const payload = { allowPromptingSubagentSessions };
+    for (const frame of chatFrameRefs.current.values()) {
+      const frameWindow = frame.contentWindow;
+      if (!frameWindow) continue;
+
+      const directSync = (frameWindow as unknown as {
+        __openchamberApplyChatSettingsSync?: (settings: typeof payload) => void;
+      }).__openchamberApplyChatSettingsSync;
+      if (typeof directSync === 'function') {
+        try {
+          directSync(payload);
+          continue;
+        } catch {
+          // fallback to postMessage below
+        }
+      }
+
+      frameWindow.postMessage({ type: 'openchamber:chat-settings-sync', payload }, window.location.origin);
+    }
+  }, [allowPromptingSubagentSessions]);
+
   const postEmbeddedVisibilityToChats = React.useCallback(() => {
     if (typeof window === 'undefined') {
       return;
@@ -2443,6 +2468,10 @@ export const ContextPanel: React.FC = () => {
       }
 
       const data = event.data as { type?: unknown };
+      if (data?.type === 'openchamber:chat-settings-request') {
+        postChatSettingsSyncToEmbeddedChat();
+        return;
+      }
       if (data?.type !== 'openchamber:cycle-theme-request') {
         return;
       }
@@ -2455,7 +2484,7 @@ export const ContextPanel: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [setThemeMode, themeMode]);
+  }, [postChatSettingsSyncToEmbeddedChat, setThemeMode, themeMode]);
 
   React.useLayoutEffect(() => {
     const hasAnyChatTab = tabs.some((tab) => tab.mode === 'chat');
@@ -2464,8 +2493,9 @@ export const ContextPanel: React.FC = () => {
     }
 
     postThemeSyncToEmbeddedChat();
+    postChatSettingsSyncToEmbeddedChat();
     postEmbeddedVisibilityToChats();
-  }, [darkThemeId, lightThemeId, postEmbeddedVisibilityToChats, postThemeSyncToEmbeddedChat, tabs, themeMode]);
+  }, [darkThemeId, lightThemeId, postChatSettingsSyncToEmbeddedChat, postEmbeddedVisibilityToChats, postThemeSyncToEmbeddedChat, tabs, themeMode]);
 
   const tabItems = React.useMemo(() => tabs.map((tab) => {
     const rawLabel = getTabLabel(tab, sessionTitleById, t);
@@ -2660,6 +2690,7 @@ export const ContextPanel: React.FC = () => {
               )}
               onLoad={() => {
                 postThemeSyncToEmbeddedChat();
+                postChatSettingsSyncToEmbeddedChat();
                 postEmbeddedVisibilityToChats();
               }}
             />
