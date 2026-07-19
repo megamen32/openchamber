@@ -39,6 +39,7 @@ import { ShareOpinionDialog } from '@/components/feedback/ShareOpinionDialog';
 import { SessionGroupSection } from './sidebar/SessionGroupSection';
 import { SidebarHeader } from './sidebar/SidebarHeader';
 import { SidebarActivitySections } from './sidebar/SidebarActivitySections';
+import { buildUnassignedSessionNodes } from './sidebar/unassignedSessionUtils';
 import { SidebarFooter } from './sidebar/SidebarFooter';
 import { SidebarProjectsList } from './sidebar/SidebarProjectsList';
 import { SessionNodeItem } from './sidebar/SessionNodeItem';
@@ -355,13 +356,15 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     downloadUpdate: s.downloadUpdate,
     restartToUpdate: s.restartToUpdate,
   })));
+  const showRecentSection = useSessionDisplayStore((state) => state.showRecentSection);
+  const showArchivedSessions = useSessionDisplayStore((state) => state.showArchivedSessions);
 
   const knownSessionDirectories = React.useMemo(
     () => buildKnownSessionDirectories(projects, availableWorktreesByProject, { includeWorktrees: !isVSCode }),
     [availableWorktreesByProject, isVSCode, projects],
   );
 
-  const sessions = React.useMemo(() => {
+  const allActiveSessions = React.useMemo(() => {
     const liveById = new Map(liveSessions.map((session) => [session.id, session]));
     const merged = globalActiveSessions.map((session) => {
       const liveSession = liveById.get(session.id);
@@ -376,11 +379,18 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       merged.push(session);
     });
 
-    return merged.filter((session) => isKnownActiveSessionDirectory(session, knownSessionDirectories, {
+    return merged;
+  }, [globalActiveSessions, liveSessions]);
+
+  const sessions = React.useMemo(() => allActiveSessions.filter((session) => isKnownActiveSessionDirectory(session, knownSessionDirectories, {
       allowUnknownDirectory: !isVSCode,
       allowEmptyDirectorySet: !isVSCode,
-    }));
-  }, [globalActiveSessions, isVSCode, knownSessionDirectories, liveSessions]);
+    })), [allActiveSessions, isVSCode, knownSessionDirectories]);
+
+  const unassignedSessionNodes = React.useMemo(() => buildUnassignedSessionNodes([
+    ...allActiveSessions,
+    ...(showArchivedSessions ? archivedSessions : []),
+  ], knownSessionDirectories), [allActiveSessions, archivedSessions, knownSessionDirectories, showArchivedSessions]);
 
   const persistenceSessions = React.useMemo(
     () => [...globalActiveSessions, ...archivedSessions],
@@ -1032,8 +1042,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     lastRepoStatusRef.current = Boolean(projectRepoStatus.get(activeProjectId));
   }
 
-  const showRecentSection = useSessionDisplayStore((state) => state.showRecentSection);
-  const showArchivedSessions = useSessionDisplayStore((state) => state.showArchivedSessions);
   const projectSortOrder = useSessionDisplayStore((state) => state.projectSortOrder);
   const manualProjectOrder = useProjectsStore((state) => state.manualProjectOrder);
 
@@ -1199,14 +1207,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   // Prefetch is wired below, after recentSessionIds is computed.
 
   const activitySections = React.useMemo(() => {
-    // VS Code renders the full grouped project view (one group per open
-    // workspace, folders + pinned native); the flat "recent" activity list is
-    // web/desktop-only.
-    if (isVSCode || !showRecentSection) {
-      return [];
-    }
-
-    const recentSessions = activeNowSessions;
+    // The recent activity list is web/desktop-only, but unassigned sessions
+    // must remain reachable in every shell because they are not represented by
+    // any registered project section.
+    const recentSessions = isVSCode || !showRecentSection ? [] : activeNowSessions;
 
     const toItem = (session: Session) => {
       const existing = sessionSidebarMetaById.get(session.id);
@@ -1237,10 +1241,28 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       .map(toItem)
       .filter((item): item is NonNullable<ReturnType<typeof toItem>> => item !== null);
 
+    const unassignedItems = unassignedSessionNodes
+      .map((node) => {
+        const directory = normalizePath(resolveGlobalSessionDirectory(node.session));
+        const filteredNodes = hasSessionSearchQuery
+          ? filterSessionNodesForSearch([node], normalizedSessionSearchQuery)
+          : [node];
+        const filteredNode = filteredNodes[0];
+        if (!filteredNode) return null;
+        return {
+          node: filteredNode,
+          projectId: null,
+          groupDirectory: directory,
+          secondaryMeta: { projectLabel: t('sessions.sidebar.activity.unassignedTitle'), branchLabel: null },
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
     return [
-      { key: 'active-now' as const, title: t('sessions.sidebar.activity.recentTitle'), items },
+      ...(items.length > 0 ? [{ key: 'active-now' as const, title: t('sessions.sidebar.activity.recentTitle'), items }] : []),
+      ...(unassignedItems.length > 0 ? [{ key: 'unassigned' as const, title: t('sessions.sidebar.activity.unassignedTitle'), items: unassignedItems }] : []),
     ];
-  }, [activeNowSessions, filterSessionNodesForSearch, hasSessionSearchQuery, isVSCode, normalizedSessionSearchQuery, sessionSidebarMetaById, showRecentSection, t]);
+  }, [activeNowSessions, filterSessionNodesForSearch, hasSessionSearchQuery, isVSCode, normalizedSessionSearchQuery, sessionSidebarMetaById, showRecentSection, t, unassignedSessionNodes]);
 
   const hasActivitySectionItems = React.useMemo(
     () => activitySections.some((section) => section.items.length > 0),
@@ -1575,7 +1597,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     ],
   );
 
-  const topContent = (!isVSCode && showRecentSection && !hasSessionSearchQuery) ? (
+  const topContent = (!hasSessionSearchQuery && activitySections.length > 0) ? (
     <SidebarActivitySections
       sections={activitySections}
       renderSessionNode={renderSessionNode}

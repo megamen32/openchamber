@@ -1516,6 +1516,7 @@ async function main(options = {}) {
     readCustomThemesFromDisk,
     refreshOpenCodeAfterConfigChange,
     getOpenCodeResolutionSnapshot,
+    isExternalOpenCode: () => isExternalOpenCode,
     formatSettingsResponse,
     readSettingsFromDisk,
     readSettingsFromDiskMigrated,

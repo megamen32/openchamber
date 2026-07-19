@@ -61,14 +61,21 @@ export const OpenCodeUpdateToast: React.FC = () => {
         },
         body: JSON.stringify({}),
       });
-      const payload = await response.json().catch(() => null) as null | { success?: boolean; version?: string; error?: string };
+      const payload = await response.json().catch(() => null) as null | {
+        success?: boolean;
+        version?: string;
+        error?: string;
+        restartRequired?: boolean;
+      };
       if (!response.ok || payload?.success === false) {
         throw new Error(payload?.error || response.statusText || t('opencodeUpdate.toast.failed.description'));
       }
 
       toast.success(t('opencodeUpdate.toast.updated.title'), {
         id: UPGRADE_TOAST_ID,
-        description: payload?.version
+        description: payload?.restartRequired
+          ? t('opencodeUpdate.toast.updated.externalRestartRequired')
+          : payload?.version
           ? t('opencodeUpdate.toast.updated.descriptionWithVersion', { version: payload.version })
           : t('opencodeUpdate.toast.updated.description'),
         duration: Infinity,
