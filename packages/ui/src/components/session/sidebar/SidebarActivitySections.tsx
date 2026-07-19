@@ -21,7 +21,7 @@ type ActivityItem = {
 };
 
 type ActivitySection = {
-  key: 'active-now';
+  key: 'active-now' | 'unassigned';
   title: string;
   items: ActivityItem[];
 };

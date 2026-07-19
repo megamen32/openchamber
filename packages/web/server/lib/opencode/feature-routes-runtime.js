@@ -84,6 +84,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       readCustomThemesFromDisk,
       refreshOpenCodeAfterConfigChange,
       getOpenCodeResolutionSnapshot,
+      isExternalOpenCode,
       formatSettingsResponse,
       readSettingsFromDisk,
       readSettingsFromDiskMigrated,
@@ -114,6 +115,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       crypto,
       clientReloadDelayMs,
       getOpenCodeResolutionSnapshot,
+      isExternalOpenCode,
       formatSettingsResponse,
       readSettingsFromDisk,
       readSettingsFromDiskMigrated,
@@ -126,6 +128,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       refreshOpenCodeAfterConfigChange,
       buildOpenCodeUrl,
       getOpenCodeAuthHeaders,
+      spawn,
     });
 
     registerProjectIconRoutes(app, {

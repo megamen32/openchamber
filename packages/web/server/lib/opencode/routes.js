@@ -2,12 +2,14 @@ import { createProjectIdFromPath } from '../projects/project-id.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { upgradeExternalOpenCode } from './external-upgrade.js';
 
 export const registerOpenCodeRoutes = (app, dependencies) => {
   const {
     crypto,
     clientReloadDelayMs,
     getOpenCodeResolutionSnapshot,
+    isExternalOpenCode,
     formatSettingsResponse,
     readSettingsFromDisk,
     readSettingsFromDiskMigrated,
@@ -20,6 +22,7 @@ export const registerOpenCodeRoutes = (app, dependencies) => {
     refreshOpenCodeAfterConfigChange,
     buildOpenCodeUrl,
     getOpenCodeAuthHeaders,
+    spawn,
   } = dependencies;
 
   let authLibrary = null;
@@ -176,6 +179,38 @@ export const registerOpenCodeRoutes = (app, dependencies) => {
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) {
+        const external = typeof isExternalOpenCode === 'function' && isExternalOpenCode();
+        if (external && [404, 405, 501].includes(response.status)) {
+          const settings = await readSettingsFromDiskMigrated();
+          const resolution = await getOpenCodeResolutionSnapshot(settings);
+          const baseUrl = new URL(buildOpenCodeUrl('/global/health', '')).origin;
+          const cliResult = await upgradeExternalOpenCode({
+            baseUrl,
+            binary: resolution?.resolved,
+            target,
+            spawn,
+          });
+
+          try {
+            await refreshOpenCodeAfterConfigChange('OpenCode CLI upgrade');
+          } catch (refreshError) {
+            return res.status(500).json({
+              success: false,
+              upgraded: true,
+              restartRequired: true,
+              error: refreshError instanceof Error
+                ? `OpenCode upgraded, but reconnect failed: ${refreshError.message}`
+                : 'OpenCode upgraded, but reconnect failed',
+            });
+          }
+
+          return res.json({
+            ...cliResult,
+            restarted: false,
+            message: 'OpenCode CLI upgraded. Restart the external OpenCode server with its own supervisor.',
+          });
+        }
+
         return res.status(response.status).json({
           success: false,
           error: payload?.error || response.statusText || 'Failed to upgrade OpenCode',
@@ -197,7 +232,8 @@ export const registerOpenCodeRoutes = (app, dependencies) => {
       return res.json({ ...(payload ?? { success: true }), restarted: true });
     } catch (error) {
       console.error('Failed to upgrade OpenCode:', error);
-      return res.status(500).json({
+      const status = error?.code === 'EXTERNAL_OPENCODE_REMOTE' ? 422 : 500;
+      return res.status(status).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to upgrade OpenCode',
       });
