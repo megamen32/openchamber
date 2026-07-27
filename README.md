@@ -84,6 +84,45 @@
 - **Project Actions** - Run dev servers, configure SSH port forwarding, open remote URLs locally. Your project commands, one click away.
 - **Connect to remote machines** - Desktop app connects to remote OpenChamber instances over SSH, with dedicated lifecycle and UX flows.
 
+## Roomhacker custom fork features
+
+These are the user-specific features added on top of OpenChamber. They are
+opt-in where noted and are stored as settings rather than being permanently
+forced on.
+
+- **Resilience settings:** in OpenChamber Settings, configure automatic
+  resume, fallback enablement and ordered fallback model IDs, provider response
+  timeout, local tool timeout, retry count, and retry delay. The defaults are
+  off/zero, and changes apply to the next request.
+- **Failed-turn recovery in the chat:** an errored assistant turn shows the
+  requested model and, when available, the actual model used by the route. In
+  that same message area, `Возобновить` and `Перезапуск` recover the turn; an
+  optional provider/model/variant selector can be used for that recovery.
+- **Change model without waiting:** selecting a different model from recovery
+  or the model controls updates the session for the next request only; it does
+  not rewrite an already running response.
+- **Composer Task/MCP menu:** the button beside the composer discovers runtime
+  Task subagents and MCP actions (including `send_message` when exposed),
+  displays unsupported actions explicitly, and sends a selected direct call.
+- **Subagent workspace:** two independent opt-ins control whether a newly
+  created subagent opens automatically and whether direct child chats appear
+  together in one horizontally scrollable strip instead of separate tabs.
+- **Send result to parent:** inside a subagent chat, a button sends the latest
+  completed assistant answer back to its native parent session.
+- **Exact model IDs and route provenance:** the UI preserves IDs such as
+  `minimax/MiniMax-M3:512k` and consumes OpenCode resilience metadata so combo
+  responses can identify the actual model.
+
+Implementation: [`packages/ui/src/components/sections/openchamber/ResilienceSettings.tsx`](packages/ui/src/components/sections/openchamber/ResilienceSettings.tsx),
+[`packages/ui/src/components/chat/FailedTurnRecoveryControls.tsx`](packages/ui/src/components/chat/FailedTurnRecoveryControls.tsx),
+[`packages/ui/src/components/chat/ComposerToolMenu.tsx`](packages/ui/src/components/chat/ComposerToolMenu.tsx),
+[`packages/ui/src/components/session/SubagentWorkspaceStrip.tsx`](packages/ui/src/components/session/SubagentWorkspaceStrip.tsx),
+[`packages/ui/src/stores/useSubagentWorkspaceSettingsStore.ts`](packages/ui/src/stores/useSubagentWorkspaceSettingsStore.ts), and
+[`packages/ui/src/sync/session-recovery-actions.ts`](packages/ui/src/sync/session-recovery-actions.ts).
+The parent handoff is implemented in
+[`packages/ui/src/lib/opencode/tool-call-client.ts`](packages/ui/src/lib/opencode/tool-call-client.ts)
+and [`packages/ui/src/components/chat/ChatMessage.tsx`](packages/ui/src/components/chat/ChatMessage.tsx).
+
 ## Quick Start
 
 > **Prerequisite:** Desktop bundles the matching OpenCode CLI. CLI/Web and VS Code use your installed [OpenCode CLI](https://opencode.ai).
