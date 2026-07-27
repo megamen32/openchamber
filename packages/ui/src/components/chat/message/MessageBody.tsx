@@ -436,6 +436,11 @@ interface MessageBodyProps {
     userActionsMode?: 'inline' | 'external-content' | 'external-actions';
     stickyUserHeaderEnabled?: boolean;
     reviewTransferDirection?: ReviewTransferDirection | null;
+    assistantTransferAction?: {
+        ariaLabel: string;
+        tooltip: string;
+        onClick: () => void | Promise<void>;
+    };
     contextPinned?: boolean;
     contextPinPending?: boolean;
     onToggleContextPin?: () => void;
@@ -1093,6 +1098,7 @@ const AssistantMessageBody = React.memo(({
     errorMessage,
     errorVariant = 'error',
     reviewTransferDirection = null,
+    assistantTransferAction,
     contextPinned,
     contextPinPending,
     onToggleContextPin,
@@ -1289,6 +1295,7 @@ const AssistantMessageBody = React.memo(({
             },
         };
     }, [assistantPlanText, effectiveDirectory, effectiveReviewTransferDirection, sessionId, t]);
+    const effectiveAssistantTransferAction = reviewTransferAction ?? assistantTransferAction;
     const [isPlanDialogOpen, setIsPlanDialogOpen] = React.useState(false);
     const [isSavingPlan, setIsSavingPlan] = React.useState(false);
     const [isForkDialogOpen, setIsForkDialogOpen] = React.useState(false);
@@ -1702,9 +1709,9 @@ const AssistantMessageBody = React.memo(({
             onCopyMessage={onCopyMessage}
             onShareImage={shareMessageAsImage}
             ttsText={assistantPlanText}
-            reviewTransferAction={reviewTransferAction}
+            reviewTransferAction={effectiveAssistantTransferAction}
         />
-    ), [assistantPlanText, hasCopyableText, isTouchContext, onCopyMessage, reviewTransferAction, shareMessageAsImage]);
+    ), [assistantPlanText, effectiveAssistantTransferAction, hasCopyableText, isTouchContext, onCopyMessage, shareMessageAsImage]);
 
     const renderJustificationActions = React.useCallback((activity: NonNullable<TurnGroupingContext['activityParts']>[number]) => {
         if (!showSplitAssistantMessageActions || !isSortedRenderMode) {

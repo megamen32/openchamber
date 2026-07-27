@@ -118,6 +118,8 @@ import { SessionSuggestionChip } from '@/components/chat/SessionSuggestionChip';
 import { SessionGoalRow } from '@/components/chat/SessionGoalRow';
 import { SessionGoalButton, SessionGoalObjectiveCounter } from '@/components/chat/SessionGoalButton';
 import type { Part } from '@opencode-ai/sdk/v2/client';
+import { ComposerToolMenu } from './ComposerToolMenu';
+import type { CallableAction } from '@/lib/opencode/tool-call-client';
 
 const MAX_VISIBLE_TEXTAREA_LINES = 8;
 const EMPTY_QUEUE: QueuedMessage[] = [];
@@ -1820,6 +1822,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const canSend = hasContent || hasQueuedMessages;
 
     const canAbort = sessionPhase !== 'idle';
+    const handleComposerToolAction = React.useCallback(async (action: CallableAction) => {
+        if (!action.supported) {
+            toast.error(action.unsupportedReason ?? 'This runtime does not expose a safe direct action contract yet.');
+            return;
+        }
+    }, []);
 
     const getCurrentInputSnapshot = React.useCallback(() => {
         const currentMessage = textareaRef.current?.value ?? message;
@@ -5480,6 +5488,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                             footerIconButtonClass={footerIconButtonClass}
                                             iconSizeClass={iconSizeClass}
                                         />
+                                        <ComposerToolMenu
+                                            sessionId={currentSessionId}
+                                            directory={currentSessionDirectoryForSync ?? currentDirectory}
+                                            buttonClassName={footerIconButtonClass}
+                                            iconClassName={iconSizeClass}
+                                            onSelectAction={handleComposerToolAction}
+                                        />
                                         <SessionGoalObjectiveCounter length={message.length} />
                                     </div>
                                     <div className="flex items-center min-w-0 gap-x-1 justify-end">
@@ -5557,6 +5572,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                         footerIconButtonClass={footerIconButtonClass}
                                         iconSizeClass={iconSizeClass}
                                         withTooltip
+                                    />
+                                    <ComposerToolMenu
+                                        sessionId={currentSessionId}
+                                        directory={currentSessionDirectoryForSync ?? currentDirectory}
+                                        buttonClassName={footerIconButtonClass}
+                                        iconClassName={iconSizeClass}
+                                        onSelectAction={handleComposerToolAction}
                                     />
                                     <SessionGoalObjectiveCounter length={message.length} />
                                 </div>

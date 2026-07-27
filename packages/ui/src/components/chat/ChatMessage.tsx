@@ -37,6 +37,7 @@ import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { getContextObligatoryMessages } from '@/lib/contextObligatoryMessages';
 import { setContextObligatoryMessage } from '@/sync/session-actions';
 import { isVSCodeRuntime } from '@/lib/desktop';
+import { sendLastChildAnswerToParent } from '@/lib/opencode/tool-call-client';
 
 const ToolOutputDialog = lazyWithChunkRecovery(() => import('./message/ToolOutputDialog'));
 
@@ -405,6 +406,33 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             ?? state.archivedSessions.find((candidate) => candidate.id === sessionId);
         return getContextObligatoryMessages(session).some((entry) => entry.id === message.info.id);
     });
+    const parentSessionID = useGlobalSessionsStore((state) => {
+        const session = state.activeSessions.find((candidate) => candidate.id === sessionId)
+            ?? state.archivedSessions.find((candidate) => candidate.id === sessionId);
+        const parentID = (session as { parentID?: unknown } | undefined)?.parentID;
+        return typeof parentID === 'string' && parentID.trim().length > 0 ? parentID : null;
+    });
+    const childSessionTransferAction = React.useMemo(() => {
+        if (isUser || !sessionId || !parentSessionID) return undefined;
+        return {
+            ariaLabel: 'Send last child answer to parent',
+            tooltip: 'Send last child answer to parent',
+            onClick: async () => {
+                try {
+                    const directory = useSessionUIStore.getState().getDirectoryForSession(sessionId);
+                    if (!directory) {
+                        throw new Error('The child session is not mapped to a project directory');
+                    }
+                    await sendLastChildAnswerToParent(sessionId, directory);
+                    toast.success('Sent the latest child answer to the parent session');
+                } catch (error) {
+                    console.error('[chat-message] failed to send child answer to parent', error);
+                    const messageText = error instanceof Error ? error.message : 'Failed to send the child answer to the parent session';
+                    toast.error(messageText);
+                }
+            },
+        };
+    }, [isUser, parentSessionID, sessionId]);
     const [pinPending, setPinPending] = React.useState(false);
     const handleToggleContextPin = React.useCallback(async () => {
         if (!sessionId || !messageCreatedAt || pinPending) return;
@@ -1161,6 +1189,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                                 errorMessage={assistantErrorText}
                                 errorVariant={assistantErrorVariant}
                                 reviewTransferDirection={reviewTransferDirection}
+                                assistantTransferAction={childSessionTransferAction}
                                 footerProviderID={headerProviderID}
                                 footerModelName={headerModelName}
                                 footerAgentName={headerAgentName}

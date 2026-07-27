@@ -12,6 +12,7 @@ import { computeSubtreeIds } from "./scoped-blocking-requests"
 import { opencodeClient } from "@/lib/opencode/client"
 import { mergeSessionDirectoryMetadata, resolveGlobalSessionDirectory, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useConfigStore } from "@/stores/useConfigStore"
+import { useSelectionStore } from "./selection-store"
 import { registerSessionDirectory } from "./sync-refs"
 import { isSyntheticPart } from "@/lib/messages/synthetic"
 import { materializeSessionSnapshots } from "./materialization"
@@ -28,6 +29,7 @@ import { withContextObligatoryMessage, type ContextObligatoryMessage } from "@/l
 import { getImperativeSessionMessageLoader } from "./session-message-loader"
 import { cleanupPersistedSessionState } from "./session-deletion-cleanup"
 import { getRuntimeKey } from "@/lib/runtime-switch"
+import { markPendingUserSendAnimation } from "@/lib/userSendAnimation"
 import { useSubagentWorkspaceSettingsStore } from "@/stores/useSubagentWorkspaceSettingsStore"
 
 const MESSAGE_REFETCH_LIMIT = 100
@@ -37,6 +39,13 @@ const SEND_CONFIRMATION_REFETCH_RETRY_MS = 150
 const MESSAGE_REFETCH_SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const UNREVERT_REFETCH_ATTEMPTS = 3
 const UNREVERT_REFETCH_RETRY_MS = 150
+
+type SessionMessageModelContext = {
+  providerID: string
+  modelID: string
+  agent?: string
+  variant?: string
+}
 
 // Reference set by SyncProvider — allows actions to access SDK and stores
 let _sdk: OpencodeClient | null = null
@@ -192,6 +201,92 @@ export function getSessionLastAssistantModel(sessionId: string): { providerID: s
   } catch {
     return null
   }
+}
+
+export function resolveSessionMessageModelContext(sessionId: string): SessionMessageModelContext | null {
+  const selection = useSelectionStore.getState()
+  const config = useConfigStore.getState()
+  const lastChoice = useSessionUIStore.getState().getLastUserChoice(sessionId)
+  const agent = lastChoice?.agent || selection.getSessionAgentSelection(sessionId) || config.currentAgentName || undefined
+  const sessionModel = selection.getSessionModelSelection(sessionId)
+  const agentModel = agent ? selection.getAgentModelForSession(sessionId, agent) : null
+  const lastChoiceModel = lastChoice?.providerID && lastChoice.modelID
+    ? { providerId: lastChoice.providerID, modelId: lastChoice.modelID }
+    : null
+  const selectedModel = lastChoiceModel || agentModel || sessionModel || (config.currentProviderId && config.currentModelId
+    ? { providerId: config.currentProviderId, modelId: config.currentModelId }
+    : null)
+  if (!selectedModel?.providerId || !selectedModel?.modelId) return null
+  if (lastChoiceModel) {
+    return {
+      providerID: lastChoiceModel.providerId,
+      modelID: lastChoiceModel.modelId,
+      agent,
+      variant: lastChoice?.variant,
+    }
+  }
+
+  const selectionVariant = agent
+    ? selection.getAgentModelVariantForSession(sessionId, agent, selectedModel.providerId, selectedModel.modelId)
+    : undefined
+  const configVariant = config.currentProviderId === selectedModel.providerId && config.currentModelId === selectedModel.modelId
+    ? config.currentVariant
+    : undefined
+  return {
+    providerID: selectedModel.providerId,
+    modelID: selectedModel.modelId,
+    agent,
+    variant: selectionVariant || configVariant || undefined,
+  }
+}
+
+export async function sendPlainSessionMessage(
+  sessionId: string,
+  directory: string,
+  text: string,
+  modelContext?: SessionMessageModelContext | null,
+): Promise<string> {
+  const resolved = modelContext ?? resolveSessionMessageModelContext(sessionId)
+  if (!resolved) {
+    throw new Error("Select a model before sending this session handoff")
+  }
+
+  const selection = useSelectionStore.getState()
+  selection.saveSessionModelSelection(sessionId, resolved.providerID, resolved.modelID)
+  if (resolved.agent) {
+    selection.saveSessionAgentSelection(sessionId, resolved.agent)
+    selection.saveAgentModelForSession(sessionId, resolved.agent, resolved.providerID, resolved.modelID)
+    selection.saveAgentModelVariantForSession(sessionId, resolved.agent, resolved.providerID, resolved.modelID, resolved.variant)
+  }
+
+  markPendingUserSendAnimation(sessionId)
+  let sentMessageID: string | null = null
+  await optimisticSend({
+    sessionId,
+    content: text,
+    directory,
+    providerID: resolved.providerID,
+    modelID: resolved.modelID,
+    agent: resolved.agent,
+    onMessageID: (messageID) => {
+      sentMessageID = messageID
+    },
+    send: (messageID) => opencodeClient.sendMessage({
+      id: sessionId,
+      directory,
+      providerID: resolved.providerID,
+      modelID: resolved.modelID,
+      agent: resolved.agent,
+      variant: resolved.variant,
+      text,
+      messageId: messageID,
+    }).then(() => undefined),
+  })
+
+  if (!sentMessageID) {
+    throw new Error("Failed to prepare the handoff message")
+  }
+  return sentMessageID
 }
 
 function updateLiveSession(session: Session, directory?: string): boolean {

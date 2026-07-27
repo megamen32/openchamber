@@ -5,6 +5,13 @@ import { opencodeClient } from '@/lib/opencode/client';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 
 export type McpStatusMap = Record<string, McpStatus>;
+export type McpDiscoveryEntry = {
+  id: string;
+  label: string;
+  name: string;
+  status: string;
+  statusLabel: string;
+};
 type McpRuntimeDiagnostic = {
   status: 'failed';
   error: string;
@@ -37,6 +44,30 @@ const getMcpApiClient = (directory: string | null | undefined) => {
     return opencodeClient.getApiClient();
   }
   return opencodeClient.getScopedApiClient(normalized);
+};
+
+const MCP_STATUS_LABELS: Record<string, string> = {
+  connected: 'Connected',
+  failed: 'Failed',
+  needs_auth: 'Needs auth',
+  needs_client_registration: 'Needs client registration',
+};
+
+export const listDiscoveredMcpEntries = (status: McpStatusMap | null | undefined): McpDiscoveryEntry[] => {
+  return Object.entries(status ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, value]) => {
+      const statusValue = typeof value?.status === 'string' && value.status.trim().length > 0
+        ? value.status
+        : 'unknown';
+      return {
+        id: `mcp:${name}`,
+        label: `MCP: ${name}`,
+        name,
+        status: statusValue,
+        statusLabel: MCP_STATUS_LABELS[statusValue] ?? statusValue,
+      };
+    });
 };
 
 export const computeMcpHealth = (status: McpStatusMap | null | undefined): McpHealth => {
