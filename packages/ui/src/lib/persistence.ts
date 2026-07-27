@@ -70,6 +70,13 @@ const persistRuntimeSettingsMirror = (settings: DesktopSettings, runtimeKey: str
     pwaAppName: settings.pwaAppName,
     mobileKeyboardMode: settings.mobileKeyboardMode,
     openCodeUpdateToastDismissedVersion: settings.openCodeUpdateToastDismissedVersion,
+    autoResume: settings.autoResume,
+    retries: settings.retries,
+    retryDelayMs: settings.retryDelayMs,
+    responseTimeoutMs: settings.responseTimeoutMs,
+    toolTimeoutMs: settings.toolTimeoutMs,
+    fallbackEnabled: settings.fallbackEnabled,
+    fallbackModelIds: settings.fallbackModelIds,
     dictationEnabled: settings.dictationEnabled,
     sttProvider: settings.sttProvider,
     sttServerUrl: settings.sttServerUrl,
@@ -592,6 +599,13 @@ const materializeAuthoritativeUiSettings = (settings: DesktopSettings): DesktopS
     gitChangesViewMode: defaults.gitChangesViewMode,
     directoryShowHidden: true,
     filesViewShowGitignored: false,
+    autoResume: false,
+    retries: 0,
+    retryDelayMs: 0,
+    responseTimeoutMs: 0,
+    toolTimeoutMs: 0,
+    fallbackEnabled: false,
+    fallbackModelIds: [],
     dictationEnabled: true,
     sttProvider: 'local',
     sttServerUrl: 'http://localhost:8001/v1',
@@ -1528,6 +1542,40 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
   }
   if (typeof candidate.responseStyleEnabled === 'boolean') {
     result.responseStyleEnabled = candidate.responseStyleEnabled;
+  }
+  if (typeof candidate.autoResume === 'boolean') {
+    result.autoResume = candidate.autoResume;
+  }
+  if (typeof candidate.retries === 'number' && Number.isFinite(candidate.retries)) {
+    result.retries = Math.max(0, Math.floor(candidate.retries));
+  }
+  if (typeof candidate.retryDelayMs === 'number' && Number.isFinite(candidate.retryDelayMs)) {
+    result.retryDelayMs = Math.max(0, Math.floor(candidate.retryDelayMs));
+  }
+  if (typeof candidate.responseTimeoutMs === 'number' && Number.isFinite(candidate.responseTimeoutMs)) {
+    result.responseTimeoutMs = Math.max(0, Math.floor(candidate.responseTimeoutMs));
+  }
+  if (typeof candidate.toolTimeoutMs === 'number' && Number.isFinite(candidate.toolTimeoutMs)) {
+    result.toolTimeoutMs = Math.max(0, Math.floor(candidate.toolTimeoutMs));
+  }
+  if (typeof candidate.fallbackEnabled === 'boolean') {
+    result.fallbackEnabled = candidate.fallbackEnabled;
+  }
+  if (Array.isArray(candidate.fallbackModelIds)) {
+    const seenFallbackModelIds = new Set<string>();
+    const fallbackModelIds: string[] = [];
+    for (const entry of candidate.fallbackModelIds) {
+      const modelId = typeof entry === 'string' ? entry.trim() : '';
+      if (!modelId || seenFallbackModelIds.has(modelId)) {
+        continue;
+      }
+      seenFallbackModelIds.add(modelId);
+      fallbackModelIds.push(modelId);
+      if (fallbackModelIds.length >= 16) {
+        break;
+      }
+    }
+    result.fallbackModelIds = fallbackModelIds;
   }
   if (
     typeof candidate.responseStylePreset === 'string'

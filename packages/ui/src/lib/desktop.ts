@@ -198,6 +198,13 @@ export type DesktopSettings = {
   // Global behavior prompt — synced to ~/.config/opencode/AGENTS.md
   globalBehaviorPrompt?: string;
   responseStyleEnabled?: boolean;
+  autoResume?: boolean;
+  retries?: number;
+  retryDelayMs?: number;
+  responseTimeoutMs?: number;
+  toolTimeoutMs?: number;
+  fallbackEnabled?: boolean;
+  fallbackModelIds?: string[];
   responseStylePreset?: 'concise' | 'detailed' | 'mentor' | 'pushback' | 'noFiller' | 'matchEnergy' | 'warmPeer' | 'custom';
   responseStyleCustomInstructions?: string;
   dictationEnabled?: boolean;

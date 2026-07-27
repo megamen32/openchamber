@@ -22,6 +22,7 @@ export const createSettingsHelpers = (dependencies) => {
   const STT_MODEL_MAX_LENGTH = 256;
   const STT_LANGUAGE_MAX_LENGTH = 64;
   const VERSION_STRING_MAX_LENGTH = 128;
+  const FALLBACK_MODEL_IDS_MAX = 16;
   const SHORTCUT_OVERRIDE_KEY_MAX_LENGTH = 128;
   const SHORTCUT_OVERRIDE_VALUE_MAX_LENGTH = 128;
   const PWA_ORIENTATION_VALUES = new Set(['system', 'portrait', 'landscape']);
@@ -787,6 +788,31 @@ export const createSettingsHelpers = (dependencies) => {
 
     if (typeof candidate.responseStyleEnabled === 'boolean') {
       result.responseStyleEnabled = candidate.responseStyleEnabled;
+    }
+    if (typeof candidate.autoResume === 'boolean') {
+      result.autoResume = candidate.autoResume;
+    }
+    if (typeof candidate.retries === 'number' && Number.isFinite(candidate.retries)) {
+      result.retries = Math.max(0, Math.floor(candidate.retries));
+    }
+    if (typeof candidate.retryDelayMs === 'number' && Number.isFinite(candidate.retryDelayMs)) {
+      result.retryDelayMs = Math.max(0, Math.floor(candidate.retryDelayMs));
+    }
+    if (typeof candidate.responseTimeoutMs === 'number' && Number.isFinite(candidate.responseTimeoutMs)) {
+      result.responseTimeoutMs = Math.max(0, Math.floor(candidate.responseTimeoutMs));
+    }
+    if (typeof candidate.toolTimeoutMs === 'number' && Number.isFinite(candidate.toolTimeoutMs)) {
+      result.toolTimeoutMs = Math.max(0, Math.floor(candidate.toolTimeoutMs));
+    }
+    if (typeof candidate.fallbackEnabled === 'boolean') {
+      result.fallbackEnabled = candidate.fallbackEnabled;
+    }
+    if (Array.isArray(candidate.fallbackModelIds)) {
+      const fallbackModelIds = normalizeStringArray(candidate.fallbackModelIds)
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value) => value.length > 0)
+        .slice(0, FALLBACK_MODEL_IDS_MAX);
+      result.fallbackModelIds = Array.from(new Set(fallbackModelIds));
     }
 
     if (

@@ -94,6 +94,28 @@ describe('settings helpers', () => {
     expect(helpers.sanitizeSettingsUpdate({ messageStreamTransport: 'websocket' })).toEqual({});
   });
 
+  it('accepts resilience settings through the shared settings bridge', () => {
+    const helpers = createTestHelpersWithRealSanitizers();
+
+    expect(helpers.sanitizeSettingsUpdate({
+      autoResume: true,
+      retries: 2,
+      retryDelayMs: 1500,
+      responseTimeoutMs: 30000,
+      toolTimeoutMs: 45000,
+      fallbackEnabled: true,
+      fallbackModelIds: [' openai/gpt-4.1 ', 'anthropic/claude-4-sonnet', 'openai/gpt-4.1'],
+    })).toEqual({
+      autoResume: true,
+      retries: 2,
+      retryDelayMs: 1500,
+      responseTimeoutMs: 30000,
+      toolTimeoutMs: 45000,
+      fallbackEnabled: true,
+      fallbackModelIds: ['openai/gpt-4.1', 'anthropic/claude-4-sonnet'],
+    });
+  });
+
   it('sanitizes the persisted terminal shell', () => {
     const helpers = createTestHelpers();
 

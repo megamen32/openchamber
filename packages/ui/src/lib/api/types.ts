@@ -678,6 +678,13 @@ export interface SettingsPayload {
   draftStarters?: DraftStarterRef[];
   draftStartersVisible?: boolean;
   draftStartersCraftGoalAdded?: boolean;
+  autoResume?: boolean;
+  retries?: number;
+  retryDelayMs?: number;
+  responseTimeoutMs?: number;
+  toolTimeoutMs?: number;
+  fallbackEnabled?: boolean;
+  fallbackModelIds?: string[];
 
   [key: string]: unknown;
 }
