@@ -29,6 +29,8 @@ import { OverlayScrollbar } from '@/components/ui/OverlayScrollbar';
 import { Icon } from "@/components/icon/Icon";
 import { cn, formatDirectoryName } from '@/lib/utils';
 import { useProjectsStore } from '@/stores/useProjectsStore';
+import { SubagentWorkspaceStrip, getDirectChildSessions, pickAutoOpenSubagentSession, reconcileKnownChildSessionIds } from '@/components/session/SubagentWorkspaceStrip';
+import { useSubagentWorkspaceSettingsStore } from '@/stores/useSubagentWorkspaceSettingsStore';
 
 // New sync system imports
 import { useSessionUIStore } from '@/sync/session-ui-store';
@@ -43,6 +45,7 @@ import {
     useScopedBlockingPermissions,
     useScopedBlockingQuestions,
     useParentSession,
+    useAllLiveSessions,
 } from '@/sync/sync-context';
 import { useSync } from '@/sync/use-sync';
 import { usePlanDetection } from '@/hooks/usePlanDetection';
@@ -557,6 +560,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ active = true, aut
     const allowPromptingSubagentSessions = useUIStore((state) => state.allowPromptingSubagentSessions);
     const isTimelineDialogOpen = useUIStore((s) => s.isTimelineDialogOpen);
     const setTimelineDialogOpen = useUIStore((s) => s.setTimelineDialogOpen);
+    const autoOpenSubagents = useSubagentWorkspaceSettingsStore((state) => state.autoOpenSubagents);
+    const horizontalSubagentChats = useSubagentWorkspaceSettingsStore((state) => state.horizontalSubagentChats);
 
     // Streaming state
     const streamingMessageId = useStreamingStore(
@@ -680,6 +685,26 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ active = true, aut
     const useCompactDraftLayout = isMobile || isVSCode || chatSurfaceMode === 'mini-chat';
     const messageListRef = React.useRef<MessageListHandle | null>(null);
     const parentSession = useParentSession(currentSessionId, effectiveSessionDirectory);
+    const allLiveSessions = useAllLiveSessions();
+    const directChildSessions = React.useMemo(
+        () => getDirectChildSessions(allLiveSessions, currentSessionId),
+        [allLiveSessions, currentSessionId],
+    );
+    const workspaceAnchorSessionId = parentSession?.id ?? currentSessionId;
+    const openWorkspaceSession = React.useCallback((sessionId: string, directoryHint?: string | null) => {
+        setCurrentSession(sessionId, directoryHint ?? null);
+    }, [setCurrentSession]);
+    const workspaceStrip = horizontalSubagentChats && workspaceAnchorSessionId
+        ? (
+            <SubagentWorkspaceStrip
+                anchorSessionId={workspaceAnchorSessionId}
+                activeSessionId={currentSessionId}
+                onOpenSession={openWorkspaceSession}
+            />
+        )
+        : null;
+    const knownChildSessionIdsRef = React.useRef<Set<string>>(new Set());
+    const trackedParentSessionIdRef = React.useRef<string | null>(null);
 
     // In the embedded session-chat iframe, hide "Return to parent" when
     // viewing the panel's anchor session (the one recorded in the URL). Going
@@ -757,6 +782,36 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ active = true, aut
             openNewSessionDraft();
         }
     }, [autoOpenDraft, currentSessionId, draftOpen, openNewSessionDraft]);
+
+    React.useEffect(() => {
+        const cleanedKnownIds = reconcileKnownChildSessionIds(knownChildSessionIdsRef.current, directChildSessions);
+
+        if (trackedParentSessionIdRef.current !== currentSessionId || !autoOpenSubagents) {
+            knownChildSessionIdsRef.current = new Set(directChildSessions.map((session) => session.id));
+            trackedParentSessionIdRef.current = currentSessionId;
+            return;
+        }
+
+        trackedParentSessionIdRef.current = currentSessionId;
+        const sessionToOpen = pickAutoOpenSubagentSession({
+            autoOpenSubagents,
+            activeSessionId: currentSessionId,
+            directChildSessions,
+            knownChildSessionIds: cleanedKnownIds,
+        });
+
+        if (!sessionToOpen) {
+            knownChildSessionIdsRef.current = cleanedKnownIds;
+            return;
+        }
+
+        cleanedKnownIds.add(sessionToOpen.id);
+        knownChildSessionIdsRef.current = cleanedKnownIds;
+        const directoryHint = useSessionUIStore.getState().getDirectoryForSession(sessionToOpen.id)
+            ?? (sessionToOpen as Session & { directory?: string | null }).directory
+            ?? null;
+        setCurrentSession(sessionToOpen.id, directoryHint);
+    }, [autoOpenSubagents, currentSessionId, directChildSessions, setCurrentSession]);
 
     const activeTurnChangeRef = React.useRef<(turnId: string | null) => void>(() => {});
     const handleActiveTurnChange = React.useCallback((turnId: string | null) => {
@@ -1022,6 +1077,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ active = true, aut
 			return (
 				<div className="relative flex h-full flex-col bg-background">
 					{returnToParentButton}
+                    {workspaceStrip}
 					<div className="flex min-h-0 flex-1 items-center justify-center px-6">
 						<div className="max-w-sm text-center">
 							<div className="mx-auto mb-3 flex size-9 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--status-error)_10%,transparent)] text-[var(--status-error)]">
@@ -1043,6 +1099,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ active = true, aut
 		return (
 			<div className="relative flex flex-col h-full bg-background">
 				{returnToParentButton}
+                {workspaceStrip}
 				<div
 					className={cn(
 						'relative min-h-0',
@@ -1101,6 +1158,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ active = true, aut
 			// draft branch above.
 			<div className="relative flex flex-col h-full bg-background">
 				{returnToParentButton}
+                {workspaceStrip}
 				<div
 					className={cn(
                         'relative min-h-0',
@@ -1133,6 +1191,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ active = true, aut
 	return (
 		<div className="relative flex flex-col h-full bg-background">
 			{returnToParentButton}
+            {workspaceStrip}
 			<ChatViewport
 				currentSessionId={currentSessionId}
                 isDesktopExpandedInput={isDesktopExpandedInput}

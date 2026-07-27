@@ -5,6 +5,7 @@ import { useThemeSystem } from '@/contexts/useThemeSystem';
 import type { ThemeMode } from '@/types/theme';
 import { useUIStore } from '@/stores/useUIStore';
 import { useMessageQueueStore, type FollowUpBehavior } from '@/stores/messageQueueStore';
+import { useSubagentWorkspaceSettingsStore } from '@/stores/useSubagentWorkspaceSettingsStore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { NumberInput } from '@/components/ui/number-input';
@@ -278,7 +279,7 @@ const normalizeUserMessageRenderingMode = (mode: unknown): 'markdown' | 'plain' 
     return mode === 'markdown' ? 'markdown' : 'plain';
 };
 
-type VisibleSetting = 'sessionAssist' | 'sessionGoal' | 'theme' | 'windowControlsPosition' | 'pwaInstallName' | 'pwaOrientation' | 'mobileKeyboardMode' | 'timeFormat' | 'weekStart' | 'fontSize' | 'terminalFontSize' | 'terminalShell' | 'terminalLoginShell' | 'editorFontSize' | 'spacing' | 'inputBarOffset' | 'mermaidRendering' | 'userMessageRendering' | 'chatRenderMode' | 'messageTransport' | 'activityRenderMode' | 'collapsibleUserMessages' | 'stickyUserHeader' | 'promptNavigatorEnabled' | 'wideChatLayout' | 'codeBlockLineWrap' | 'splitAssistantMessageActions' | 'subagentReadOnlyBanner' | 'diffLayout' | 'mobileStatusBar' | 'dotfiles' | 'fileViewerPreview' | 'reasoning' | 'showToolFileIcons' | 'showTurnChangedFiles' | 'expandedTools' | 'followUpBehavior' | 'terminalQuickKeys' | 'fileEditorKeymap' | 'persistDraft' | 'inputSpellcheck' | 'reportUsage' | 'expandedEditorToolbar';
+type VisibleSetting = 'sessionAssist' | 'sessionGoal' | 'theme' | 'windowControlsPosition' | 'pwaInstallName' | 'pwaOrientation' | 'mobileKeyboardMode' | 'timeFormat' | 'weekStart' | 'fontSize' | 'terminalFontSize' | 'terminalShell' | 'terminalLoginShell' | 'editorFontSize' | 'spacing' | 'inputBarOffset' | 'mermaidRendering' | 'userMessageRendering' | 'chatRenderMode' | 'messageTransport' | 'activityRenderMode' | 'collapsibleUserMessages' | 'stickyUserHeader' | 'promptNavigatorEnabled' | 'wideChatLayout' | 'codeBlockLineWrap' | 'splitAssistantMessageActions' | 'subagentReadOnlyBanner' | 'autoOpenSubagents' | 'horizontalSubagentChats' | 'diffLayout' | 'mobileStatusBar' | 'dotfiles' | 'fileViewerPreview' | 'reasoning' | 'showToolFileIcons' | 'showTurnChangedFiles' | 'expandedTools' | 'followUpBehavior' | 'terminalQuickKeys' | 'fileEditorKeymap' | 'persistDraft' | 'inputSpellcheck' | 'reportUsage' | 'expandedEditorToolbar';
 
 const WINDOW_CONTROLS_POSITION_OPTIONS: Array<{ id: DesktopWindowControlsPosition; labelKey: string }> = [
     { id: 'left', labelKey: 'settings.openchamber.desktopNetwork.option.windowControlsLeft' },
@@ -380,6 +381,10 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
     const setShowSplitAssistantMessageActions = useUIStore(state => state.setShowSplitAssistantMessageActions);
     const allowPromptingSubagentSessions = useUIStore(state => state.allowPromptingSubagentSessions);
     const setAllowPromptingSubagentSessions = useUIStore(state => state.setAllowPromptingSubagentSessions);
+    const autoOpenSubagents = useSubagentWorkspaceSettingsStore(state => state.autoOpenSubagents);
+    const setAutoOpenSubagents = useSubagentWorkspaceSettingsStore(state => state.setAutoOpenSubagents);
+    const horizontalSubagentChats = useSubagentWorkspaceSettingsStore(state => state.horizontalSubagentChats);
+    const setHorizontalSubagentChats = useSubagentWorkspaceSettingsStore(state => state.setHorizontalSubagentChats);
     const draftStartersVisible = useUIStore(state => state.draftStartersVisible);
     const setDraftStartersVisible = useUIStore(state => state.setDraftStartersVisible);
     const messageStreamTransport = useConfigStore((state) => state.settingsMessageStreamTransport);
@@ -1809,6 +1814,24 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                                 label={t('settings.openchamber.visual.field.allowPromptingSubagentSessions')}
                                                 ariaLabel={t('settings.openchamber.visual.field.allowPromptingSubagentSessionsAria')}
                                                 settingsItem="chat.subagent-read-only-banner"
+                                            />
+                                        )}
+                                        {shouldShow('autoOpenSubagents') && (
+                                            <SettingsCheckboxRow
+                                                checked={autoOpenSubagents}
+                                                onChange={setAutoOpenSubagents}
+                                                label="Auto-open new subagent sessions"
+                                                ariaLabel="Auto-open new subagent sessions"
+                                                settingsItem="chat.auto-open-subagents"
+                                            />
+                                        )}
+                                        {shouldShow('horizontalSubagentChats') && (
+                                            <SettingsCheckboxRow
+                                                checked={horizontalSubagentChats}
+                                                onChange={setHorizontalSubagentChats}
+                                                label="Show horizontal subagent workspace"
+                                                ariaLabel="Show horizontal subagent workspace"
+                                                settingsItem="chat.horizontal-subagent-workspace"
                                             />
                                         )}
                                 </SettingsSection>

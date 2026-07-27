@@ -28,6 +28,7 @@ import { withContextObligatoryMessage, type ContextObligatoryMessage } from "@/l
 import { getImperativeSessionMessageLoader } from "./session-message-loader"
 import { cleanupPersistedSessionState } from "./session-deletion-cleanup"
 import { getRuntimeKey } from "@/lib/runtime-switch"
+import { useSubagentWorkspaceSettingsStore } from "@/stores/useSubagentWorkspaceSettingsStore"
 
 const MESSAGE_REFETCH_LIMIT = 100
 const SEND_CONFIRMATION_REFETCH_LIMIT = 30
@@ -594,7 +595,10 @@ export async function createSession(
     if (sessionDirectory) {
       registerSessionDirectory(session.id, sessionDirectory)
     }
-    useSessionUIStore.getState().setCurrentSession(session.id, sessionDirectory)
+    const shouldAutoOpenCreatedSession = !parentID || useSubagentWorkspaceSettingsStore.getState().autoOpenSubagents
+    if (shouldAutoOpenCreatedSession) {
+      useSessionUIStore.getState().setCurrentSession(session.id, sessionDirectory)
+    }
     useSessionUIStore.getState().markSessionAsOpenChamberCreated(session.id)
     useGlobalSessionsStore.getState().upsertSession(session)
     return session

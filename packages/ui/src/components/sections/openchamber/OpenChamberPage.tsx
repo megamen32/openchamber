@@ -199,6 +199,8 @@ const ChatSectionContent: React.FC = () => {
                 'codeBlockLineWrap',
                 'splitAssistantMessageActions',
                 'subagentReadOnlyBanner',
+                'autoOpenSubagents',
+                'horizontalSubagentChats',
                 'diffLayout',
                 'dotfiles',
                 'fileViewerPreview',
