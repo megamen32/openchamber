@@ -272,6 +272,10 @@ class OpencodeService {
     return this.baseUrl;
   }
 
+  createMessageId(): string {
+    return ascendingId("msg");
+  }
+
   reconnectToRuntimeBaseUrl(): void {
     const runtimeBase = resolveRuntimeBaseUrl();
     const nextBaseUrl = ensureAbsoluteBaseUrl(runtimeBase || DEFAULT_BASE_URL);
@@ -950,15 +954,63 @@ class OpencodeService {
     return tempMessageId;
   }
 
-  async abortSession(id: string): Promise<boolean> {
+  async abortSession(id: string, directory?: string | null): Promise<boolean> {
+    const requestDirectory = this.normalizeCandidatePath(directory) ?? this.currentDirectory;
     const response = await this.client.session.abort(
       {
         sessionID: id,
-        ...(this.currentDirectory ? { directory: this.currentDirectory } : {})
+        ...(requestDirectory ? { directory: requestDirectory } : {})
       },
       { throwOnError: true }
     );
     return Boolean(response.data);
+  }
+
+  async waitForSessionIdle(sessionId: string, directory?: string | null): Promise<void> {
+    const requestDirectory = this.normalizeCandidatePath(directory) ?? this.currentDirectory;
+    const client = requestDirectory ? this.getScopedApiClient(requestDirectory) : this.client;
+    const response = await client.v2.session.wait({ sessionID: sessionId });
+    unwrapSdkOptional(response, 'v2.session.wait');
+  }
+
+  async switchSessionModel(
+    sessionId: string,
+    selection: { providerID: string; modelID: string; variant?: string },
+    directory?: string | null,
+  ): Promise<void> {
+    const requestDirectory = this.normalizeCandidatePath(directory) ?? this.currentDirectory;
+    const client = requestDirectory ? this.getScopedApiClient(requestDirectory) : this.client;
+    const response = await client.v2.session.switchModel({
+      sessionID: sessionId,
+      model: {
+        providerID: selection.providerID,
+        id: selection.modelID,
+        ...(selection.variant ? { variant: selection.variant } : {}),
+      },
+    });
+    unwrapSdkOptional(response, 'v2.session.switchModel');
+  }
+
+  async promptSession(params: {
+    sessionId: string;
+    prompt: {
+      text: string;
+      files?: Array<{ uri: string; name?: string }>;
+      agents?: Array<{ name: string }>;
+    };
+    id?: string;
+    resume?: boolean;
+    directory?: string | null;
+  }): Promise<void> {
+    const requestDirectory = this.normalizeCandidatePath(params.directory) ?? this.currentDirectory;
+    const client = requestDirectory ? this.getScopedApiClient(requestDirectory) : this.client;
+    const response = await client.v2.session.prompt({
+      sessionID: params.sessionId,
+      ...(params.id ? { id: params.id } : {}),
+      ...(params.resume !== undefined ? { resume: params.resume } : {}),
+      prompt: params.prompt,
+    });
+    unwrapSdkOptional(response, 'v2.session.prompt');
   }
 
   async shellSession(params: {

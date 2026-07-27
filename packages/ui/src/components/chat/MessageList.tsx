@@ -369,6 +369,18 @@ interface MessageListProps {
     directory?: string;
 }
 
+export const buildDisplayMessagesWithRetryOverlay = (
+    baseDisplayMessages: ChatMessageEntry[],
+    retryOverlay: MessageListProps['retryOverlay'],
+): ChatMessageEntry[] => {
+    return applyRetryOverlay(baseDisplayMessages, {
+        sessionId: retryOverlay?.sessionId ?? null,
+        message: retryOverlay?.message ?? 'Quota limit reached. Retrying automatically.',
+        confirmedAt: retryOverlay?.confirmedAt,
+        fallbackTimestamp: retryOverlay?.fallbackTimestamp ?? 0,
+    });
+};
+
 export interface MessageListHandle {
     scrollToTurnId: (turnId: string, options?: { behavior?: ScrollBehavior }) => boolean;
     scrollToMessageId: (messageId: string, options?: { behavior?: ScrollBehavior }) => boolean;
@@ -1369,12 +1381,7 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
     }, [scrollRef]);
 
     const displayMessages = React.useMemo(() => streamPerfMeasure('ui.message_list.retry_overlay_ms', () => {
-        return applyRetryOverlay(baseDisplayMessages, {
-            sessionId: retryOverlay?.sessionId ?? null,
-            message: retryOverlay?.message ?? 'Quota limit reached. Retrying automatically.',
-            confirmedAt: retryOverlay?.confirmedAt,
-            fallbackTimestamp: retryOverlay?.fallbackTimestamp ?? 0,
-        });
+        return buildDisplayMessagesWithRetryOverlay(baseDisplayMessages, retryOverlay);
     }), [baseDisplayMessages, retryOverlay]);
 
     const planModeEnabled = useFeatureFlagsStore((state) => state.planModeEnabled);

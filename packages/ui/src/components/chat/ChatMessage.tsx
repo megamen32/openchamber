@@ -37,6 +37,7 @@ import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { getContextObligatoryMessages } from '@/lib/contextObligatoryMessages';
 import { setContextObligatoryMessage } from '@/sync/session-actions';
 import { isVSCodeRuntime } from '@/lib/desktop';
+import { FailedTurnRecoveryControls } from './FailedTurnRecoveryControls';
 import { sendLastChildAnswerToParent } from '@/lib/opencode/tool-call-client';
 
 const ToolOutputDialog = lazyWithChunkRecovery(() => import('./message/ToolOutputDialog'));
@@ -712,7 +713,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             return undefined;
         }
         const errorInfo = (message.info as { error?: unknown } | undefined)?.error as
-            | { data?: { message?: unknown }; message?: unknown; name?: unknown }
+            | {
+                data?: {
+                    message?: unknown;
+                    providerID?: unknown;
+                    modelID?: unknown;
+                    variant?: unknown;
+                };
+                message?: unknown;
+                name?: unknown;
+              }
             | undefined;
         if (!errorInfo) {
             return undefined;
@@ -724,32 +734,61 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         if (!detail) {
             return undefined;
         }
+        const recoveryProviderID = typeof errorInfo.data?.providerID === 'string' && errorInfo.data.providerID.trim().length > 0
+            ? errorInfo.data.providerID
+            : previousUserMetadata?.providerId;
+        const recoveryModelID = typeof errorInfo.data?.modelID === 'string' && errorInfo.data.modelID.trim().length > 0
+            ? errorInfo.data.modelID
+            : previousUserMetadata?.modelId;
+        const recoveryVariant = typeof errorInfo.data?.variant === 'string' && errorInfo.data.variant.trim().length > 0
+            ? errorInfo.data.variant
+            : previousUserMetadata?.variant;
+        const recovery = message.info.sessionID
+            ? {
+                sessionId: message.info.sessionID,
+                providerID: recoveryProviderID,
+                modelID: recoveryModelID,
+                variant: recoveryVariant,
+            }
+            : undefined;
         if (errorName === 'SessionRetry') {
             return {
                 text: `Opencode failed to send a message. Retry attempt info: \n\`${detail}\``,
                 variant: 'info' as const,
+                recovery,
             };
         }
         if (isLikelyProviderAuthFailure(detail)) {
             return {
                 text: PROVIDER_AUTH_FAILURE_MESSAGE,
                 variant: 'error' as const,
+                recovery,
             };
         }
         if (detail.trim().toLowerCase() === 'aborted') {
             return {
                 text: 'The running turn was stopped before OpenCode could send the next message.',
                 variant: 'info' as const,
+                recovery,
             };
         }
         return {
             text: `Opencode failed to send message with error:\n\`${detail}\``,
             variant: 'error' as const,
+            recovery,
         };
-    }, [isUser, message.info]);
+    }, [isUser, message.info, previousUserMetadata]);
 
     const assistantErrorText = assistantError?.text;
     const assistantErrorVariant = assistantError?.variant;
+    const assistantErrorActions = assistantError?.recovery?.sessionId ? (
+        <FailedTurnRecoveryControls
+            sessionId={assistantError.recovery.sessionId}
+            providerID={assistantError.recovery.providerID}
+            modelID={assistantError.recovery.modelID}
+            variant={assistantError.recovery.variant}
+        />
+    ) : undefined;
 
     const messageTextContent = React.useMemo(() => {
         if (isUser) {
@@ -1188,6 +1227,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                                 turnGroupingContext={turnGroupingContext}
                                 errorMessage={assistantErrorText}
                                 errorVariant={assistantErrorVariant}
+                                errorActions={assistantErrorActions}
                                 reviewTransferDirection={reviewTransferDirection}
                                 assistantTransferAction={childSessionTransferAction}
                                 footerProviderID={headerProviderID}

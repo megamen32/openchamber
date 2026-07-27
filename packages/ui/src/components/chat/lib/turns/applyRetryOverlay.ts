@@ -16,6 +16,31 @@ interface RetryOverlayInput {
     fallbackTimestamp: number;
 }
 
+const readUserSelection = (message: ChatMessageEntry): { providerID?: string; modelID?: string; variant?: string } => {
+    const info = message.info as {
+        providerID?: unknown;
+        modelID?: unknown;
+        variant?: unknown;
+        model?: {
+            providerID?: unknown;
+            modelID?: unknown;
+            variant?: unknown;
+        };
+    };
+
+    const providerID = typeof info.model?.providerID === 'string' && info.model.providerID.trim().length > 0
+        ? info.model.providerID
+        : (typeof info.providerID === 'string' && info.providerID.trim().length > 0 ? info.providerID : undefined);
+    const modelID = typeof info.model?.modelID === 'string' && info.model.modelID.trim().length > 0
+        ? info.model.modelID
+        : (typeof info.modelID === 'string' && info.modelID.trim().length > 0 ? info.modelID : undefined);
+    const variant = typeof info.model?.variant === 'string' && info.model.variant.trim().length > 0
+        ? info.model.variant
+        : (typeof info.variant === 'string' && info.variant.trim().length > 0 ? info.variant : undefined);
+
+    return { providerID, modelID, variant };
+};
+
 export const applyRetryOverlay = (
     messages: ChatMessageEntry[],
     input: RetryOverlayInput,
@@ -23,12 +48,6 @@ export const applyRetryOverlay = (
     if (!input.sessionId) {
         return messages;
     }
-
-    const retryError = {
-        name: 'SessionRetry',
-        message: input.message,
-        data: { message: input.message },
-    };
 
     let lastUserIndex = -1;
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -41,6 +60,18 @@ export const applyRetryOverlay = (
     if (lastUserIndex < 0) {
         return messages;
     }
+
+    const lastUserSelection = readUserSelection(messages[lastUserIndex]);
+    const retryError = {
+        name: 'SessionRetry',
+        message: input.message,
+        data: {
+            message: input.message,
+            ...(lastUserSelection.providerID ? { providerID: lastUserSelection.providerID } : {}),
+            ...(lastUserSelection.modelID ? { modelID: lastUserSelection.modelID } : {}),
+            ...(lastUserSelection.variant ? { variant: lastUserSelection.variant } : {}),
+        },
+    };
 
     let targetAssistantIndex = -1;
     for (let index = messages.length - 1; index > lastUserIndex; index -= 1) {

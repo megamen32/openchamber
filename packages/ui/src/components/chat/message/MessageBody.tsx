@@ -433,6 +433,7 @@ interface MessageBodyProps {
     onFork?: () => void;
     errorMessage?: string;
     errorVariant?: 'error' | 'info';
+    errorActions?: React.ReactNode;
     userActionsMode?: 'inline' | 'external-content' | 'external-actions';
     stickyUserHeaderEnabled?: boolean;
     reviewTransferDirection?: ReviewTransferDirection | null;
@@ -1097,6 +1098,7 @@ const AssistantMessageBody = React.memo(({
     turnGroupingContext,
     errorMessage,
     errorVariant = 'error',
+    errorActions,
     reviewTransferDirection = null,
     assistantTransferAction,
     contextPinned,
@@ -2228,6 +2230,11 @@ const AssistantMessageBody = React.memo(({
                                         />
                                     </div>
                                 </div>
+                                {errorActions ? (
+                                    <div className="mt-3">
+                                        {errorActions}
+                                    </div>
+                                ) : null}
                             </div>
                         </FadeInOnReveal>
                     )}
