@@ -2358,9 +2358,14 @@ export const ContextPanel: React.FC = () => {
         continue;
       }
 
-      const directThemeSync = (frameWindow as unknown as {
-        __openchamberApplyThemeSync?: (themePayload: typeof payload) => void;
-      }).__openchamberApplyThemeSync;
+      let directThemeSync: ((themePayload: typeof payload) => void) | undefined;
+      try {
+        directThemeSync = (frameWindow as unknown as {
+          __openchamberApplyThemeSync?: (themePayload: typeof payload) => void;
+        }).__openchamberApplyThemeSync;
+      } catch {
+        // Cross-origin frames throw SecurityError on direct property access; fallback to postMessage below.
+      }
 
       if (typeof directThemeSync === 'function') {
         try {
@@ -2371,13 +2376,24 @@ export const ContextPanel: React.FC = () => {
         }
       }
 
-      frameWindow.postMessage(
-        {
-          type: 'openchamber:theme-sync',
-          payload,
-        },
-        window.location.origin,
-      );
+      try {
+        frameWindow.postMessage(
+          {
+            type: 'openchamber:theme-sync',
+            payload,
+          },
+          window.location.origin,
+        );
+      } catch {
+        // Sandboxed/about:blank frames can have opaque origin "null"; theme payload is non-sensitive.
+        frameWindow.postMessage(
+          {
+            type: 'openchamber:theme-sync',
+            payload,
+          },
+          '*',
+        );
+      }
     }
   }, [currentTheme, darkThemeId, lightThemeId, themeMode]);
 
@@ -2417,9 +2433,14 @@ export const ContextPanel: React.FC = () => {
       }
 
       const payload = { visible: activeChatTabID === tabID };
-      const directVisibilitySync = (frameWindow as unknown as {
-        __openchamberSetEmbeddedVisibility?: (visibilityPayload: typeof payload) => void;
-      }).__openchamberSetEmbeddedVisibility;
+      let directVisibilitySync: ((visibilityPayload: typeof payload) => void) | undefined;
+      try {
+        directVisibilitySync = (frameWindow as unknown as {
+          __openchamberSetEmbeddedVisibility?: (visibilityPayload: typeof payload) => void;
+        }).__openchamberSetEmbeddedVisibility;
+      } catch {
+        // Cross-origin frames throw SecurityError on direct property access; fallback to postMessage below.
+      }
 
       if (typeof directVisibilitySync === 'function') {
         try {
@@ -2430,13 +2451,24 @@ export const ContextPanel: React.FC = () => {
         }
       }
 
-      frameWindow.postMessage(
-        {
-          type: 'openchamber:embedded-visibility',
-          payload,
-        },
-        window.location.origin,
-      );
+      try {
+        frameWindow.postMessage(
+          {
+            type: 'openchamber:embedded-visibility',
+            payload,
+          },
+          window.location.origin,
+        );
+      } catch {
+        // Sandboxed/about:blank frames can have opaque origin "null"; visibility payload is non-sensitive.
+        frameWindow.postMessage(
+          {
+            type: 'openchamber:embedded-visibility',
+            payload,
+          },
+          '*',
+        );
+      }
     }
   }, [activeChatTabID]);
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { UsageCard } from './UsageCard';
 import { QuotaCredentials } from './QuotaCredentials';
-import { QUOTA_PROVIDERS } from '@/lib/quota';
+import { QUOTA_PROVIDERS, getQuotaProviderMeta } from '@/lib/quota';
 import { useQuotaAutoRefresh, useQuotaStore } from '@/stores/useQuotaStore';
 import { updateDesktopSettings } from '@/lib/persistence';
 import { ProviderLogo } from '@/components/ui/ProviderLogo';
@@ -35,6 +35,8 @@ interface ModelInfo {
   name: string;
   windows: UsageWindows;
 }
+
+type InlineCredentialsProviderId = 'opencode-go' | 'ollama-cloud' | 'cursor';
 
 export const UsagePage: React.FC = () => {
   const { t } = useI18n();
@@ -73,11 +75,18 @@ export const UsagePage: React.FC = () => {
 
   const selectedResult = results.find((entry) => entry.providerId === selectedProviderId) ?? null;
 
-  const providerMeta = QUOTA_PROVIDERS.find((provider) => provider.id === selectedProviderId);
+  const providerMeta = selectedProviderId
+    ? getQuotaProviderMeta(selectedProviderId, selectedResult?.providerName)
+    : null;
   const providerName = providerMeta?.name ?? selectedProviderId ?? t('settings.usage.sidebar.title');
   const usage = selectedResult?.usage;
   const showInDropdown = selectedProviderId ? dropdownProviderIds.includes(selectedProviderId) : false;
-  const hasCredentialsForm = selectedProviderId === 'opencode-go' || selectedProviderId === 'ollama-cloud' || selectedProviderId === 'cursor';
+  const inlineCredentialsProviderId = (
+    selectedProviderId === 'opencode-go' || selectedProviderId === 'ollama-cloud' || selectedProviderId === 'cursor'
+      ? selectedProviderId
+      : null
+  ) as InlineCredentialsProviderId | null;
+  const hasCredentialsForm = inlineCredentialsProviderId !== null;
   const handleDropdownToggle = React.useCallback((enabled: boolean) => {
     if (!selectedProviderId) {
       return;
@@ -196,8 +205,8 @@ export const UsagePage: React.FC = () => {
         </div>
       )}
 
-      {(selectedProviderId === 'opencode-go' || selectedProviderId === 'ollama-cloud' || selectedProviderId === 'cursor') && (
-        <QuotaCredentials providerId={selectedProviderId} providerName={providerName} />
+      {inlineCredentialsProviderId && (
+        <QuotaCredentials providerId={inlineCredentialsProviderId} providerName={providerName} />
       )}
 
       {usage?.windows && Object.keys(usage.windows).length > 0 && (

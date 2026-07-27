@@ -68,6 +68,7 @@ describe('embedded session chat URL', () => {
     expect(url.searchParams.get('lightThemeId')).toBe('custom-light');
     expect(url.searchParams.get('darkThemeId')).toBe('custom-dark');
     expect(url.searchParams.get('currentTheme')).toBeNull();
+    expect(src.length).toBeLessThan(300);
   });
 
   test('does not encode syntax tokens in the URL', () => {

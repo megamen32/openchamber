@@ -47,6 +47,11 @@ export const buildEmbeddedSessionChatURL = (
   url.searchParams.set('darkThemeId', theme.darkThemeId);
   url.searchParams.set('themeVariant', theme.currentTheme.metadata.variant === 'dark' ? 'dark' : 'light');
 
+  // Keep the iframe URL compact and shareable. Full custom theme data is
+  // synchronized after load via direct same-origin calls/postMessage from
+  // ContextPanel, so it does not need to be embedded in the query string.
+  url.searchParams.delete('currentTheme');
+
   url.hash = '';
   return url.toString();
 };

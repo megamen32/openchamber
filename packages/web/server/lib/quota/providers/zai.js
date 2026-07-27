@@ -4,8 +4,6 @@ import {
   normalizeAuthEntry,
   buildResult,
   toUsageWindow,
-  toNumber,
-  toTimestamp,
   resolveWindowSeconds,
   resolveWindowLabel,
   normalizeTimestamp
@@ -13,7 +11,7 @@ import {
 
 export const providerId = 'zai-coding-plan';
 export const providerName = 'z.ai';
-const aliases = ['zai-coding-plan', 'zai', 'z.ai'];
+export const aliases = ['zai-coding-plan', 'zai', 'z.ai'];
 
 export const isConfigured = () => {
   const auth = readAuthFile();
@@ -57,17 +55,33 @@ export const fetchQuota = async () => {
 
     const payload = await response.json();
     const limits = Array.isArray(payload?.data?.limits) ? payload.data.limits : [];
-    const tokensLimit = limits.find((limit) => limit?.type === 'TOKENS_LIMIT');
-    const windowSeconds = resolveWindowSeconds(tokensLimit);
-    const windowLabel = resolveWindowLabel(windowSeconds);
-    const resetAt = tokensLimit?.nextResetTime ? normalizeTimestamp(tokensLimit.nextResetTime) : null;
-    const usedPercent = typeof tokensLimit?.percentage === 'number' ? tokensLimit.percentage : null;
+    const tokensLimits = limits.filter((limit) => limit?.type === 'TOKENS_LIMIT');
+    const timeLimits = limits.filter((limit) => limit?.type === 'TIME_LIMIT');
 
     const windows = {};
-    if (tokensLimit) {
+    for (const tokensLimit of tokensLimits) {
+      const windowSeconds = resolveWindowSeconds(tokensLimit);
+      if (!windowSeconds) continue;
+      const windowLabel = resolveWindowLabel(windowSeconds);
+      const resetAt = tokensLimit?.nextResetTime ? normalizeTimestamp(tokensLimit.nextResetTime) : null;
+      const usedPercent = typeof tokensLimit?.percentage === 'number' ? tokensLimit.percentage : null;
+
       windows[windowLabel] = toUsageWindow({
         usedPercent,
         windowSeconds,
+        resetAt
+      });
+    }
+
+    // Handle TIME_LIMIT (MCP tools monthly window — unit=5 means 1 month / 30 days)
+    for (const timeLimit of timeLimits) {
+      const monthSeconds = 30 * 24 * 60 * 60;
+      const resetAt = timeLimit?.nextResetTime ? normalizeTimestamp(timeLimit.nextResetTime) : null;
+      const usedPercent = typeof timeLimit?.percentage === 'number' ? timeLimit.percentage : null;
+
+      windows['MCP Tools'] = toUsageWindow({
+        usedPercent,
+        windowSeconds: monthSeconds,
         resetAt
       });
     }
