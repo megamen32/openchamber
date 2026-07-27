@@ -34,9 +34,9 @@ const isActionablyVisibleTaskAgent = (agent: Agent): boolean => {
 const toTaskAction = (agent: Agent): CallableAction => ({
   kind: 'task',
   id: `task:${agent.name}`,
-  label: `Task: ${agent.name}`,
-  supported: false,
-  unsupportedReason: DIRECT_ACTION_UNSUPPORTED_MESSAGE,
+  label: `task:${agent.name}`,
+  supported: true,
+  statusLabel: 'Available',
 });
 
 const isMessageCompleted = (message: Message): boolean => {
@@ -85,10 +85,27 @@ const getDiscoveredTaskActions = async (directory?: string | null): Promise<Call
 
 export async function listCallableActions(sessionId: string, directory?: string | null): Promise<CallableAction[]> {
   void sessionId;
-  const [taskActions, mcpEntries] = await Promise.all([
+  const [taskActions, toolIds] = await Promise.all([
     getDiscoveredTaskActions(directory),
-    Promise.resolve(listDiscoveredMcpEntries(useMcpStore.getState().getStatusForDirectory(directory))),
+    opencodeClient.listExperimentalToolIds(directory).catch(() => []),
   ]);
+
+  if (toolIds.length > 0) {
+    return [
+      ...taskActions,
+      ...toolIds
+        .filter((id) => id !== 'task')
+        .map((id) => ({
+          kind: 'mcp' as const,
+          id: `mcp:${id}`,
+          label: `mcp:${id}`,
+          supported: true,
+          statusLabel: 'Available',
+        })),
+    ];
+  }
+
+  const mcpEntries = listDiscoveredMcpEntries(useMcpStore.getState().getStatusForDirectory(directory));
 
   return [
     ...taskActions,
@@ -125,7 +142,20 @@ export async function callAction(input: {
     throw new Error(action.unsupportedReason ?? DIRECT_ACTION_UNSUPPORTED_MESSAGE);
   }
 
-  throw new Error(DIRECT_ACTION_UNSUPPORTED_MESSAGE);
+  const tool = action.kind === 'task' ? 'task' : action.id.slice('mcp:'.length);
+  const argumentsForCall = action.kind === 'task'
+    ? {
+      ...input.arguments,
+      description: typeof input.arguments.description === 'string' ? input.arguments.description : action.label,
+      subagent_type: action.id.slice('task:'.length),
+    }
+    : input.arguments;
+  await opencodeClient.callExperimentalTool({
+    sessionId: input.sessionId,
+    tool,
+    arguments: argumentsForCall,
+    directory: input.directory,
+  });
 }
 
 export async function sendLastChildAnswerToParent(childSessionId: string, directory?: string | null): Promise<void> {

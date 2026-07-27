@@ -89,4 +89,43 @@ describe("failed message recovery ui", () => {
     expect(expanded).toContain("name=\"model\"");
     expect(expanded).toContain("name=\"variant\"");
   });
+
+  test("shows the factual model selected by the runtime fallback", () => {
+    const messages = applyRetryOverlay([
+      {
+        info: {
+          id: "user-1",
+          role: "user",
+          sessionID: "session-1",
+          providerID: "omniroute",
+          modelID: "combo",
+          time: { created: 1 },
+        } as never,
+        parts: [],
+      },
+      {
+        info: {
+          id: "assistant-1",
+          role: "assistant",
+          sessionID: "session-1",
+          resilience: {
+            attempt: 1,
+            selectedModel: "omniroute/combo",
+            actualModel: "minimax/MiniMax-M3:512k",
+            fallbackUsed: true,
+          },
+          time: { created: 2 },
+        } as never,
+        parts: [],
+      },
+    ], {
+      sessionId: "session-1",
+      message: "provider failed",
+      fallbackTimestamp: 10,
+    });
+
+    const error = (messages[1]?.info as { error?: { data?: Record<string, unknown> } } | undefined)?.error;
+    expect(error?.data?.actualModel).toBe("minimax/MiniMax-M3:512k");
+    expect(error?.data?.fallbackUsed).toBe(true);
+  });
 });

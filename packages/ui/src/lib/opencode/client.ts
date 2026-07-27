@@ -973,6 +973,51 @@ class OpencodeService {
     unwrapSdkOptional(response, 'v2.session.wait');
   }
 
+  async resumeSession(sessionId: string, directory?: string | null): Promise<void> {
+    const requestDirectory = this.normalizeCandidatePath(directory) ?? this.currentDirectory;
+    const query = requestDirectory ? `?directory=${encodeURIComponent(requestDirectory)}` : '';
+    const response = await runtimeFetch(`/api/session/${encodeURIComponent(sessionId)}/resume${query}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error(`v2.session.resume failed (${response.status})`);
+    }
+  }
+
+  async listExperimentalToolIds(directory?: string | null): Promise<string[]> {
+    const requestDirectory = this.normalizeCandidatePath(directory) ?? this.currentDirectory;
+    const query = requestDirectory ? `?directory=${encodeURIComponent(requestDirectory)}` : '';
+    const response = await runtimeFetch(`/api/experimental/tool/callable-ids${query}`);
+    if (!response.ok) {
+      throw new Error(`experimental.tool.callable-ids failed (${response.status})`);
+    }
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload) || payload.some((value) => typeof value !== 'string')) {
+      throw new Error('experimental.tool.callable-ids returned an invalid response');
+    }
+    return payload;
+  }
+
+  async callExperimentalTool(input: {
+    sessionId: string;
+    tool: string;
+    arguments: Record<string, unknown>;
+    directory?: string | null;
+  }): Promise<unknown> {
+    const requestDirectory = this.normalizeCandidatePath(input.directory) ?? this.currentDirectory;
+    const query = requestDirectory ? `?directory=${encodeURIComponent(requestDirectory)}` : '';
+    const response = await runtimeFetch(`/api/experimental/tool/call${query}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionID: input.sessionId, tool: input.tool, arguments: input.arguments }),
+    });
+    if (!response.ok) {
+      throw new Error(`experimental.tool.call failed (${response.status})`);
+    }
+    return response.json();
+  }
+
   async switchSessionModel(
     sessionId: string,
     selection: { providerID: string; modelID: string; variant?: string },
@@ -1460,6 +1505,28 @@ class OpencodeService {
     const data = unwrapSdkData(response, 'global.config.update');
     this.clearConfigCache();
     return data;
+  }
+
+  async updateResilienceConfig(settings: {
+    responseTimeoutMs: number;
+    toolTimeoutMs: number;
+    retries: number;
+    retryDelayMs: number;
+    autoResume: boolean;
+    fallbackEnabled: boolean;
+    fallbackModelIds: string[];
+  }): Promise<void> {
+    await this.updateConfigPartial((config) => ({
+      ...config,
+      resilience: {
+        responseTimeoutMs: settings.responseTimeoutMs,
+        toolTimeoutMs: settings.toolTimeoutMs,
+        retries: settings.retries,
+        retryDelayMs: settings.retryDelayMs,
+        autoResume: settings.autoResume,
+        fallbackModels: settings.fallbackEnabled ? settings.fallbackModelIds : [],
+      },
+    } as Config));
   }
 
   /**

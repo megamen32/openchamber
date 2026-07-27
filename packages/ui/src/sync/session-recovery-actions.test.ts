@@ -44,6 +44,9 @@ mock.module("@/lib/opencode/client", () => ({
     waitForSessionIdle: async (sessionId: string, directory?: string | null) => {
       operationLog.push({ kind: "wait", sessionId, directory });
     },
+    resumeSession: async (sessionId: string, directory?: string | null) => {
+      operationLog.push({ kind: "resume", sessionId, directory });
+    },
     abortSession: async (sessionId: string, directory?: string | null) => {
       operationLog.push({ kind: "abort", sessionId, directory });
       return true;
@@ -137,7 +140,7 @@ describe("session-recovery-actions", () => {
     seedFailedTurn();
   });
 
-  test("resume waits for idle and replays the last user prompt through durable session.prompt", async () => {
+  test("resume waits for idle and resumes the durable failed turn without duplicating its user prompt", async () => {
     await recoverFailedTurn({ sessionId: "session-1", mode: "resume" });
 
     expect(operationLog).toEqual([
@@ -153,15 +156,9 @@ describe("session-recovery-actions", () => {
         directory: "/repo/openchamber",
       },
       {
-        kind: "prompt",
+        kind: "resume",
         sessionId: "session-1",
         directory: "/repo/openchamber",
-        resume: true,
-        prompt: {
-          text: "Retry this exact request",
-          files: [{ uri: "file:///repo/openchamber/notes.md", name: "notes.md" }],
-          agents: [{ name: "reviewer" }],
-        },
       },
     ]);
   });
@@ -237,20 +234,11 @@ describe("session-recovery-actions", () => {
   });
 
   test("deduplicates concurrent recovery requests for the same session", async () => {
-    const promptGate: { release?: () => void } = {};
-    promptImpl = () => new Promise<void>((resolve) => {
-      promptGate.release = resolve;
-    });
-
     const first = recoverFailedTurn({ sessionId: "session-1", mode: "resume" });
     const second = recoverFailedTurn({ sessionId: "session-1", mode: "resume" });
 
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(operationLog.filter((entry) => entry.kind === "prompt")).toHaveLength(1);
-
-    if (promptGate.release) {
-      promptGate.release();
-    }
+    expect(operationLog.filter((entry) => entry.kind === "resume")).toHaveLength(1);
     await Promise.all([first, second]);
   });
 });

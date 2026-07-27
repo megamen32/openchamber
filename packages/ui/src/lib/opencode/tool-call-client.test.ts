@@ -6,6 +6,8 @@ let listedAgents: Agent[] = [];
 let mcpStatusByName: Record<string, { status?: string }> = {};
 let sessionsById: Record<string, Session> = {};
 let messagesBySessionId: Record<string, Array<{ info: Message; parts: Part[] }>> = {};
+let experimentalToolIds: string[] = [];
+const experimentalToolCalls: Array<Record<string, unknown>> = [];
 const sendPlainSessionMessageCalls: Array<{ sessionID: string; directory: string; text: string }> = [];
 
 mock.module('@/stores/useUIStore', () => ({
@@ -42,6 +44,11 @@ mock.module('@/lib/opencode/client', () => ({
       return session;
     }),
     getSessionMessages: mock(async (sessionID: string) => messagesBySessionId[sessionID] ?? []),
+    listExperimentalToolIds: mock(async () => experimentalToolIds),
+    callExperimentalTool: mock(async (input: Record<string, unknown>) => {
+      experimentalToolCalls.push(input);
+      return { output: 'ok' };
+    }),
   },
 }));
 
@@ -66,10 +73,12 @@ describe('tool-call-client', () => {
     mcpStatusByName = {};
     sessionsById = {};
     messagesBySessionId = {};
+    experimentalToolIds = [];
+    experimentalToolCalls.length = 0;
     sendPlainSessionMessageCalls.length = 0;
   });
 
-  test('lists runtime-proven Task and MCP discovery entries as visibly unsupported actions', async () => {
+  test('lists runtime-proven Task and MCP discovery entries', async () => {
     listedAgents = [
       { name: 'planner', mode: 'subagent' } as Agent,
       { name: 'reviewer', mode: 'all' } as Agent,
@@ -87,16 +96,16 @@ describe('tool-call-client', () => {
       {
         kind: 'task',
         id: 'task:planner',
-        label: 'Task: planner',
-        supported: false,
-        unsupportedReason: DIRECT_ACTION_UNSUPPORTED_MESSAGE,
+        label: 'task:planner',
+        supported: true,
+        statusLabel: 'Available',
       },
       {
         kind: 'task',
         id: 'task:reviewer',
-        label: 'Task: reviewer',
-        supported: false,
-        unsupportedReason: DIRECT_ACTION_UNSUPPORTED_MESSAGE,
+        label: 'task:reviewer',
+        supported: true,
+        statusLabel: 'Available',
       },
       {
         kind: 'mcp',
@@ -117,15 +126,31 @@ describe('tool-call-client', () => {
     ]);
   });
 
-  test('rejects discovered direct actions when the runtime lacks a safe invocation contract', async () => {
+  test('calls a discovered Task through the OpenCode direct tool endpoint', async () => {
     listedAgents = [{ name: 'planner', mode: 'subagent' } as Agent];
+    experimentalToolIds = ['send_message'];
 
-    await expect(callAction({
-      sessionId: 'session-child',
+    const actions = await listCallableActions('session-1', '/repo/app');
+    expect(actions.find((action) => action.id === 'task:planner')?.supported).toBe(true);
+    expect(actions.find((action) => action.id === 'mcp:send_message')?.supported).toBe(true);
+
+    await callAction({
+      sessionId: 'session-1',
       actionId: 'task:planner',
-      arguments: { brief: 'Investigate' },
+      arguments: { prompt: 'Inspect the current changes' },
       directory: '/repo/app',
-    })).rejects.toThrow(DIRECT_ACTION_UNSUPPORTED_MESSAGE);
+    });
+
+    expect(experimentalToolCalls).toEqual([{
+      sessionId: 'session-1',
+      tool: 'task',
+      arguments: {
+        prompt: 'Inspect the current changes',
+        description: 'task:planner',
+        subagent_type: 'planner',
+      },
+      directory: '/repo/app',
+    }]);
   });
 
   test('sends the latest completed child assistant answer to the native parent session', async () => {

@@ -719,6 +719,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                     providerID?: unknown;
                     modelID?: unknown;
                     variant?: unknown;
+                    actualModel?: unknown;
+                    fallbackUsed?: unknown;
                 };
                 message?: unknown;
                 name?: unknown;
@@ -743,12 +745,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         const recoveryVariant = typeof errorInfo.data?.variant === 'string' && errorInfo.data.variant.trim().length > 0
             ? errorInfo.data.variant
             : previousUserMetadata?.variant;
+        const actualModel = typeof errorInfo.data?.actualModel === 'string' && errorInfo.data.actualModel.trim().length > 0
+            ? errorInfo.data.actualModel
+            : undefined;
+        const fallbackUsed = typeof errorInfo.data?.fallbackUsed === 'boolean' ? errorInfo.data.fallbackUsed : undefined;
         const recovery = message.info.sessionID
             ? {
                 sessionId: message.info.sessionID,
                 providerID: recoveryProviderID,
                 modelID: recoveryModelID,
                 variant: recoveryVariant,
+                actualModel,
+                fallbackUsed,
             }
             : undefined;
         if (errorName === 'SessionRetry') {
@@ -787,6 +795,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             providerID={assistantError.recovery.providerID}
             modelID={assistantError.recovery.modelID}
             variant={assistantError.recovery.variant}
+            actualModel={assistantError.recovery.actualModel}
+            fallbackUsed={assistantError.recovery.fallbackUsed}
         />
     ) : undefined;
 

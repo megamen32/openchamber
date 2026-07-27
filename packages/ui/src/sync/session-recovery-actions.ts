@@ -203,10 +203,15 @@ export const recoverFailedTurn = async (input: RecoverFailedTurnInput): Promise<
       await switchModelForNextRequest(input.sessionId, selection);
     }
 
+    if (input.mode === "resume") {
+      await opencodeClient.resumeSession(input.sessionId, directory);
+      return;
+    }
+
     await opencodeClient.promptSession({
       sessionId: input.sessionId,
       directory,
-      ...(input.mode === "restart" ? { id: opencodeClient.createMessageId() } : {}),
+      id: opencodeClient.createMessageId(),
       resume: true,
       prompt: recoverableTurn.prompt,
     });

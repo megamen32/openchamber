@@ -41,6 +41,18 @@ const readUserSelection = (message: ChatMessageEntry): { providerID?: string; mo
     return { providerID, modelID, variant };
 };
 
+const readRuntimeModel = (message: ChatMessageEntry): { actualModel?: string; fallbackUsed?: boolean } => {
+    const resilience = (message.info as {
+        resilience?: { actualModel?: unknown; fallbackUsed?: unknown };
+    }).resilience;
+    return {
+        actualModel: typeof resilience?.actualModel === 'string' && resilience.actualModel.trim().length > 0
+            ? resilience.actualModel
+            : undefined,
+        fallbackUsed: typeof resilience?.fallbackUsed === 'boolean' ? resilience.fallbackUsed : undefined,
+    };
+};
+
 export const applyRetryOverlay = (
     messages: ChatMessageEntry[],
     input: RetryOverlayInput,
@@ -62,6 +74,10 @@ export const applyRetryOverlay = (
     }
 
     const lastUserSelection = readUserSelection(messages[lastUserIndex]);
+    const runtimeModel = messages
+        .slice(lastUserIndex + 1)
+        .map(readRuntimeModel)
+        .find((value) => value.actualModel !== undefined);
     const retryError = {
         name: 'SessionRetry',
         message: input.message,
@@ -70,6 +86,8 @@ export const applyRetryOverlay = (
             ...(lastUserSelection.providerID ? { providerID: lastUserSelection.providerID } : {}),
             ...(lastUserSelection.modelID ? { modelID: lastUserSelection.modelID } : {}),
             ...(lastUserSelection.variant ? { variant: lastUserSelection.variant } : {}),
+            ...(runtimeModel?.actualModel ? { actualModel: runtimeModel.actualModel } : {}),
+            ...(runtimeModel?.fallbackUsed !== undefined ? { fallbackUsed: runtimeModel.fallbackUsed } : {}),
         },
     };
 

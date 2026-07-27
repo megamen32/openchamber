@@ -344,6 +344,7 @@ export const useResilienceSettingsStore = create<ResilienceSettingsStore>((set, 
     }
 
     try {
+      await opencodeClient.updateResilienceConfig(nextSettings);
       await updateDesktopSettings(toDesktopSettingsPatch(changedSettings));
     } finally {
       if (generation === saveGeneration && runtimeKey === getRuntimeKey()) {

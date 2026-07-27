@@ -33,6 +33,7 @@ const providerModelIdsByDirectory = new Map<string, string[]>();
 let runtimeFetchImpl: (input: string, init?: RequestInit) => Promise<Response> = async () =>
   new Response(JSON.stringify({}), { headers: { 'Content-Type': 'application/json' } });
 let updateDesktopSettingsImpl: (changes: Partial<SettingsPayload>) => Promise<void> = async () => undefined;
+let updateResilienceConfigImpl: (settings: ResilienceSettingsPayload) => Promise<void> = async () => undefined;
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -120,6 +121,7 @@ mock.module('@/lib/opencode/client', () => ({
   opencodeClient: {
     setDirectory: mock(() => undefined),
     getDirectory: mock(() => undefined),
+    updateResilienceConfig: mock(async (settings: ResilienceSettingsPayload) => updateResilienceConfigImpl(settings)),
     getProvidersForConfig: mock(async (directory?: string | null) => {
       const ids = providerModelIdsByDirectory.get(directory ?? '') ?? [];
       return {
@@ -180,6 +182,7 @@ describe('useResilienceSettingsStore', () => {
       return responseWithJson(settingsByRuntime.get(getRuntimeKey()) ?? {});
     };
     updateDesktopSettingsImpl = async () => undefined;
+    updateResilienceConfigImpl = async () => undefined;
 
     switchRuntimeEndpoint({ apiBaseUrl: 'https://runtime-a.example', runtimeKey: 'runtime-a' });
 
@@ -231,6 +234,34 @@ describe('useResilienceSettingsStore', () => {
       'google/gemini-2.5-pro',
     ]);
     expect(useResilienceSettingsStore.getState().directory).toBe(DIRECTORY_B);
+  });
+
+  test('persists resilience settings into the OpenCode runtime config', async () => {
+    let runtimeSettings: ResilienceSettingsPayload | undefined;
+    updateResilienceConfigImpl = async (settings) => {
+      runtimeSettings = settings;
+    };
+
+    await useResilienceSettingsStore.getState().load(DIRECTORY_A);
+    await useResilienceSettingsStore.getState().save({
+      responseTimeoutMs: 30000,
+      toolTimeoutMs: 45000,
+      retries: 2,
+      retryDelayMs: 1500,
+      autoResume: true,
+      fallbackEnabled: true,
+      fallbackModelIds: ['minimax/MiniMax-M3:512k'],
+    });
+
+    expect(runtimeSettings).toEqual({
+      responseTimeoutMs: 30000,
+      toolTimeoutMs: 45000,
+      retries: 2,
+      retryDelayMs: 1500,
+      autoResume: true,
+      fallbackEnabled: true,
+      fallbackModelIds: ['minimax/MiniMax-M3:512k'],
+    });
   });
 
   test('ignores stale load results after a runtime switch', async () => {

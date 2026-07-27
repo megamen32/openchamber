@@ -22,6 +22,8 @@ export type FailedTurnRecoveryControlsProps = {
   providerID?: string;
   modelID?: string;
   variant?: string;
+  actualModel?: string;
+  fallbackUsed?: boolean;
   defaultModelSwitcherOpen?: boolean;
 };
 
@@ -32,6 +34,8 @@ export const FailedTurnRecoveryControls: React.FC<FailedTurnRecoveryControlsProp
   providerID,
   modelID,
   variant,
+  actualModel,
+  fallbackUsed,
   defaultModelSwitcherOpen = false,
 }) => {
   const providers = useConfigStore((state) => state.providers as RecoveryProvider[]);
@@ -134,6 +138,14 @@ export const FailedTurnRecoveryControls: React.FC<FailedTurnRecoveryControlsProp
               <code>{variant}</code>
             </>
           ) : null}
+        </div>
+      ) : null}
+
+      {actualModel ? (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>Фактическая модель:</span>
+          <code>{actualModel}</code>
+          {fallbackUsed ? <span>(fallback)</span> : null}
         </div>
       ) : null}
 

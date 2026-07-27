@@ -119,7 +119,7 @@ import { SessionGoalRow } from '@/components/chat/SessionGoalRow';
 import { SessionGoalButton, SessionGoalObjectiveCounter } from '@/components/chat/SessionGoalButton';
 import type { Part } from '@opencode-ai/sdk/v2/client';
 import { ComposerToolMenu } from './ComposerToolMenu';
-import type { CallableAction } from '@/lib/opencode/tool-call-client';
+import { callAction, type CallableAction } from '@/lib/opencode/tool-call-client';
 
 const MAX_VISIBLE_TEXTAREA_LINES = 8;
 const EMPTY_QUEUE: QueuedMessage[] = [];
@@ -1823,11 +1823,48 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
     const canAbort = sessionPhase !== 'idle';
     const handleComposerToolAction = React.useCallback(async (action: CallableAction) => {
+        if (!currentSessionId) return;
         if (!action.supported) {
-            toast.error(action.unsupportedReason ?? 'This runtime does not expose a safe direct action contract yet.');
+            toast.error(action.unsupportedReason ?? 'This action is unavailable in the current OpenCode runtime.');
             return;
         }
-    }, []);
+
+        const directory = currentSessionDirectoryForSync ?? currentDirectory;
+        let argumentsForCall: Record<string, unknown>;
+        if (action.kind === 'task') {
+            argumentsForCall = {
+                prompt: message.trim() || 'Continue the requested task from the current session context.',
+            };
+        } else {
+            const raw = message.trim();
+            if (!raw) {
+                argumentsForCall = {};
+            } else {
+                try {
+                    const parsed: unknown = JSON.parse(raw);
+                    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                        throw new Error('MCP arguments must be a JSON object');
+                    }
+                    argumentsForCall = parsed as Record<string, unknown>;
+                } catch (error) {
+                    toast.error(error instanceof Error ? error.message : 'MCP arguments must be a JSON object');
+                    return;
+                }
+            }
+        }
+
+        try {
+            await callAction({
+                sessionId: currentSessionId,
+                actionId: action.id,
+                arguments: argumentsForCall,
+                directory: directory ?? undefined,
+            });
+            toast.success(`Called ${action.id}`);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : String(error ?? 'Direct tool call failed'));
+        }
+    }, [currentDirectory, currentSessionDirectoryForSync, currentSessionId, message]);
 
     const getCurrentInputSnapshot = React.useCallback(() => {
         const currentMessage = textareaRef.current?.value ?? message;
