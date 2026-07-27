@@ -33,6 +33,8 @@ mock.module('@/stores/useMcpStore', () => ({
 
 mock.module('@/lib/opencode/client', () => ({
   opencodeClient: {
+    setDirectory: mock(() => undefined),
+    getDirectory: mock(() => undefined),
     listAgents: mock(async () => listedAgents),
     getSession: mock(async (sessionID: string) => {
       const session = sessionsById[sessionID];

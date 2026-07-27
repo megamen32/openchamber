@@ -39,6 +39,8 @@ const selectionState = {
 
 mock.module("@/lib/opencode/client", () => ({
   opencodeClient: {
+    setDirectory: () => undefined,
+    getDirectory: () => undefined,
     waitForSessionIdle: async (sessionId: string, directory?: string | null) => {
       operationLog.push({ kind: "wait", sessionId, directory });
     },

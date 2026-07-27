@@ -150,4 +150,3 @@ The OmniRoute plugin (`/home/roomhacker/agents-projects/opencode-omniroute-model
 ## Execution order
 
 After this plan is accepted, Tasks 1–5 are dispatched in parallel only after their write sets are confirmed disjoint. Task 6 runs after the workers return because it depends on all contracts. Each worker must report changed files, focused test command/output, and unresolved concerns; the lead integrates and performs final acceptance.
-

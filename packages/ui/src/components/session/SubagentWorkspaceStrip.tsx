@@ -5,111 +5,14 @@ import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useAllLiveSessions, useSessionMessageRecords, useSessionStatus } from '@/sync/sync-context';
 import { cn, formatDirectoryName } from '@/lib/utils';
 import { Icon } from '@/components/icon/Icon';
+import { getDirectChildSessions, getWorkspaceStripScrollDelta } from './subagentWorkspaceLogic';
 
-const WORKSPACE_STRIP_KEYBOARD_SCROLL_STEP = 320;
-
-type WorkspaceStripScrollInput = {
-  key?: string;
-  deltaX?: number;
-  deltaY?: number;
-  shiftKey?: boolean;
-};
-
-type PickAutoOpenSubagentSessionInput = {
-  autoOpenSubagents: boolean;
-  activeSessionId: string | null;
-  directChildSessions: Session[];
-  knownChildSessionIds: Set<string>;
-};
-
-const getSessionUpdatedAt = (session: Session): number => {
-  const updatedAt = session.time?.updated;
-  if (typeof updatedAt === 'number' && Number.isFinite(updatedAt)) {
-    return updatedAt;
-  }
-
-  const createdAt = session.time?.created;
-  return typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : 0;
-};
-
-const compareSessionsByRecency = (left: Session, right: Session): number => {
-  const delta = getSessionUpdatedAt(right) - getSessionUpdatedAt(left);
-  if (delta !== 0) {
-    return delta;
-  }
-  return left.id.localeCompare(right.id);
-};
-
-const getDirectChildSessions = (sessions: Session[], parentSessionId: string | null): Session[] => {
-  if (!parentSessionId) {
-    return [];
-  }
-
-  return sessions
-    .filter((session) => (session as Session & { parentID?: string | null }).parentID === parentSessionId)
-    .sort(compareSessionsByRecency);
-};
-
-/**
- * Retains only child ids that still exist in the current direct-child snapshot.
- */
-export const reconcileKnownChildSessionIds = (
-  knownChildSessionIds: Iterable<string>,
-  directChildSessions: Session[],
-): Set<string> => {
-  const liveIds = new Set(directChildSessions.map((session) => session.id));
-  const next = new Set<string>();
-  for (const sessionId of knownChildSessionIds) {
-    if (liveIds.has(sessionId)) {
-      next.add(sessionId);
-    }
-  }
-  return next;
-};
-
-/**
- * Chooses the newest unseen direct child session when subagent auto-open is enabled.
- */
-export const pickAutoOpenSubagentSession = ({
-  autoOpenSubagents,
-  activeSessionId,
-  directChildSessions,
-  knownChildSessionIds,
-}: PickAutoOpenSubagentSessionInput): Session | null => {
-  if (!autoOpenSubagents || !activeSessionId) {
-    return null;
-  }
-
-  for (const session of directChildSessions) {
-    if (!knownChildSessionIds.has(session.id)) {
-      return session;
-    }
-  }
-
-  return null;
-};
-
-/**
- * Normalizes keyboard and wheel input into a single horizontal scroll delta.
- */
-export const getWorkspaceStripScrollDelta = (input: WorkspaceStripScrollInput): number | null => {
-  if (input.key === 'ArrowRight') {
-    return WORKSPACE_STRIP_KEYBOARD_SCROLL_STEP;
-  }
-  if (input.key === 'ArrowLeft') {
-    return -WORKSPACE_STRIP_KEYBOARD_SCROLL_STEP;
-  }
-
-  const deltaX = typeof input.deltaX === 'number' ? input.deltaX : 0;
-  const deltaY = typeof input.deltaY === 'number' ? input.deltaY : 0;
-  if (deltaX !== 0) {
-    return deltaX;
-  }
-  if (input.shiftKey && deltaY !== 0) {
-    return deltaY;
-  }
-  return null;
-};
+export {
+  getDirectChildSessions,
+  getWorkspaceStripScrollDelta,
+  pickAutoOpenSubagentSession,
+  reconcileKnownChildSessionIds,
+} from './subagentWorkspaceLogic';
 
 const getSessionDirectoryLabel = (session: Session, fallbackDirectory: string | null): string | null => {
   const directory = (session as Session & { directory?: string | null }).directory ?? fallbackDirectory ?? null;
@@ -287,5 +190,3 @@ export const SubagentWorkspaceStrip: React.FC<SubagentWorkspaceStripProps> = ({
     </section>
   );
 };
-
-export { getDirectChildSessions };

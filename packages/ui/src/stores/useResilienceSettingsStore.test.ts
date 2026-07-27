@@ -47,8 +47,7 @@ const deferred = <T,>() => {
 const responseWithJson = (value: unknown): Response =>
   new Response(JSON.stringify(value), {
     headers: { 'Content-Type': 'application/json' },
-  });
-
+});
 const ensureLocalStorage = (): void => {
   if (typeof localStorage !== 'undefined') {
     return;
@@ -119,6 +118,8 @@ mock.module('@/lib/persistence', () => ({
 
 mock.module('@/lib/opencode/client', () => ({
   opencodeClient: {
+    setDirectory: mock(() => undefined),
+    getDirectory: mock(() => undefined),
     getProvidersForConfig: mock(async (directory?: string | null) => {
       const ids = providerModelIdsByDirectory.get(directory ?? '') ?? [];
       return {
@@ -342,4 +343,3 @@ describe('useResilienceSettingsStore', () => {
     });
   });
 });
-
