@@ -69,3 +69,4 @@ workspaces/
 .worktrees/
 test-results/
 artifacts/browser-profile-*/
+graphify-out/

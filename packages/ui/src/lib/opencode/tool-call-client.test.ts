@@ -97,6 +97,22 @@ describe('tool-call-client', () => {
         kind: 'task',
         id: 'task:planner',
         label: 'task:planner',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            prompt: {
+              type: 'string',
+              title: 'Prompt',
+              description: 'Instructions for the subagent',
+            },
+            description: {
+              type: 'string',
+              title: 'Description',
+              description: 'Optional short label for this task',
+            },
+          },
+          required: ['prompt'],
+        },
         supported: true,
         statusLabel: 'Available',
       },
@@ -104,6 +120,22 @@ describe('tool-call-client', () => {
         kind: 'task',
         id: 'task:reviewer',
         label: 'task:reviewer',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            prompt: {
+              type: 'string',
+              title: 'Prompt',
+              description: 'Instructions for the subagent',
+            },
+            description: {
+              type: 'string',
+              title: 'Description',
+              description: 'Optional short label for this task',
+            },
+          },
+          required: ['prompt'],
+        },
         supported: true,
         statusLabel: 'Available',
       },

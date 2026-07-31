@@ -35,6 +35,22 @@ const toTaskAction = (agent: Agent): CallableAction => ({
   kind: 'task',
   id: `task:${agent.name}`,
   label: `task:${agent.name}`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      prompt: {
+        type: 'string',
+        title: 'Prompt',
+        description: 'Instructions for the subagent',
+      },
+      description: {
+        type: 'string',
+        title: 'Description',
+        description: 'Optional short label for this task',
+      },
+    },
+    required: ['prompt'],
+  },
   supported: true,
   statusLabel: 'Available',
 });
